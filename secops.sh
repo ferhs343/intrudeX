@@ -18,95 +18,58 @@ purpleColour="\e[1;95m"
 flag=0
 error=$(echo -e "${redColour}\n ERROR, the specified option does not exist!..\n\n${endColour}")
 
-function repeat() {
-
-        repeat="-"
-        value=25
-        for ((i=0;i<=$value;i++))
-        do
-                echo -n "$repeat"
-        done
-}
-
 function banner() {
 
-	echo -e "${cyanColour}"
-	echo -e '  ________  ______   ______             _____  __________   ________'
-	echo -e ' /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
-	echo -e ' \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \'
-	echo -e " /_______/ \_____>   \______\          \_____/   |    |    /_______/    ${greenColour}By: Luis Herrera :)${cyanColour}"
-	echo -e "                                                 |____|                 ${greenColour}V.1.0 ${endColour}"
+        echo -e "${greenColour}"
+        echo -e '                    /\___/\___/\___/\___/\___/\___/\___/\               '
+        echo -e "${cyanColour}"
+        echo -e '      ________  ______   ______             _____  __________   ________'
+        echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
+        echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
+        echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/    ${redColour}By: Luis Herrera :)${cyanColour}"
+        echo -e "                                                     |____|                 ${redColour}V.1.0 ${greenColour}"
+        echo -e "                      ___  ___  ___  ___  ___  ___  ___"
+        echo -e "                    \/   \/   \/   \/   \/   \/   \/   \/"
+        echo -e "${yellowColour}\n\n Esta herramienta fue creada para detectar los principales ataques dentro de un PCAP${endColour}"
 }
 
-#main menu
-function main_menu() {
+function pcap_analyze_option() {
 
-	flag=0
-	clear
-	banner
-	echo -e "\n${purpleColour} $(repeat)\n  SECTIONS\n $(repeat) \n\n ${redColour}[1] Red Team Tools\n\n [2] Blue Team Tools\n\n [3] Exit\n\n ${endColour}"
-	echo -e "${yellowColour} Please, enter a option${endColour}\n"
+        flag=0
+        clear
+        banner
+        echo -e "\n\n${greenColour} [1] TCP SYN Flood\n\n [2] Nmap Scan \n\n [3] Vlan Hopping\n\n [4] HSRP Attack\n\n [5] TCP Port Scan\n\n [6] ARP Spoofing\n\n [7] DHCP Spoofing\n\n [8] Back \n\n ${endColour}"
+        echo -e "${yellowColour} Please, enter a option${endColour}\n"
 
-	while [ "$flag" -eq 0 ];
-	do
-		echo -e "${greenColour}┌─[${redColour}${HOSTNAME}${greenColour}]──[${redColour}~${greenColour}]─[${yellowColour}${PWD}${greenColour}]:"
-		read -p "└─────► $(tput setaf 7)" option
-
-		if [ "$option" -eq  1 ];
-	      	then
-                	option_1_main_menu
-			flag=1
-
-        	elif [ "$option" -eq 2 ];
-        	then
-                	option_2_main_menu
-			flag=1
-
-        	elif [ "$option" -eq 3 ];
-        	then
-			flag=1
-               	 	echo -e "Exiting.....\n"
-                	sleep 1
-               		exit
-		else
-			echo "$error"
-			flag=0
-		fi
-	done
-}
-
-#submenu of main_menu if user select option 1
-function option_1_main_menu() {
-
-	clear
-	banner
-	echo -e "\n${purpleColour} $(repeat)\n  RED TEAM SECTION\n $(repeat) \n\n ${redColour}[1] Network Scanning\n\n [2] Sniffing\n\n [3] Network Attacks\n\n [4] Back\n\n ${endColour}"
-	echo -e "${yellowColour} Please, enter a suboption${endColour}\n"
-
-	while [ "$flag" -eq 0 ];
+        while [ "$flag" -eq 0 ];
         do
-                echo -e "${greenColour}┌─[${redColour}${HOSTNAME}${greenColour}]──[${redColour}~${greenColour}]─[${yellowColour}${PWD}${greenColour}]:"
+                echo -e "${greenColour}┌─[${redColour}${HOSTNAME}${greenColour}]──[${redColour}~${greenColour}]─[${yellowColour}/MainMenu/PcapAnalyze/${greenColour}]:"
                 read -p "└─────► $(tput setaf 7)" suboption
 
-                if [ "$suboption" -eq  1 ];
+                if [ "$suboption" -eq 1 ];
                 then
-                        suboption_1_redteam
                         flag=1
 
                 elif [ "$suboption" -eq 2 ];
                 then
-                        suboption_2_redteam
                         flag=1
 
-		elif [ "$suboption" -eq 3 ];
-		then
-			suboption_3_redteam
-			flag=1
+                elif [ "$suboption" -eq 3 ];
+                then
+                        flag=1
 
                 elif [ "$suboption" -eq 4 ];
                 then
                         flag=1
+
+                elif [ "$suboption" -eq 5 ];
+                then
+                        flag=1
+
+                elif [ "$suboption" -eq 8 ];
+                then
                         main_menu
+                        flag=1
                 else
                         echo "$error"
                         flag=0
@@ -114,43 +77,51 @@ function option_1_main_menu() {
         done
 }
 
-#submenu of main_menu if user select option 2
-function option_2_main_menu() {
+#main menu
+function main_menu() {
 
+        flag=0
         clear
         banner
-        echo -e "\n${purpleColour} $(repeat)\n  BLUE TEAM SECTION\n $(repeat) \n\n ${redColour}[1] Malicious IP\n\n [2] PCAP Analyze\n\n [3] File analyze\n\n [4] Zeek\n\n [5] Back\n\n${endColour}"
-        echo -e "${yellowColour} Please, enter a suboption${endColour}\n"
+        echo -e "\n\n${greenColour} [1] PCAP Analyze\n\n [2] Sniffing\n\n [3] Packet Manipulation\n\n [4] Layer 2 Attacks\n\n [5] Malicious Ip\n\n [6] Exit\n\n ${endColour}"
+        echo -e "${yellowColour} Please, enter a option${endColour}\n"
 
         while [ "$flag" -eq 0 ];
         do
-                echo -e "${greenColour}┌─[${redColour}${HOSTNAME}${greenColour}]──[${redColour}~${greenColour}]─[${yellowColour}${PWD}${greenColour}]:"
-                read -p "└─────► $(tput setaf 7)" suboption
+                echo -e "${greenColour}┌─[${redColour}${HOSTNAME}${greenColour}]──[${redColour}~${greenColour}]─[${yellowColour}/MainMenu/${greenColour}]:"
+                read -p "└─────► $(tput setaf 7)" option
 
-                if [ "$suboption" -eq  1 ];
+                if [ "$option" -eq 1 ];
                 then
-                        suboption_1_blueteam
+                        pcap_analyze_option
                         flag=1
 
-                elif [ "$suboption" -eq 2 ];
+                elif [ "$option" -eq 2 ];
                 then
-                        suboption_2_blueteam
+                        sniffing
                         flag=1
 
-                elif [ "$suboption" -eq 3 ];
+                elif [ "$option" -eq 3 ];
                 then
-                        suboption_3_blueteam
+                        packet_manipulation
                         flag=1
 
-		elif [ "$suboption" -eq 4 ];
-		then
-			suboption_4_blueteam
-			flag=1
-
-                elif [ "$suboption" -eq 5 ];
+                elif [ "$option" -eq 4 ];
                 then
+                        layer_2_attacks
                         flag=1
-                        main_menu
+
+                elif [ "$option" -eq 5 ];
+                then
+                        malicious_ip
+                        flag=1
+
+                elif [ "$option" -eq 6 ];
+                then
+                        echo -e "\nEXITING......"
+                        sleep 1
+                        flag=1
+                        exit
                 else
                         echo "$error"
                         flag=0
