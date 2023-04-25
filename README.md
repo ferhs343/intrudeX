@@ -38,7 +38,7 @@ Así mismo, en el prompt diseñado, se observa que cada vez que se selecciona un
 
 ![image](https://user-images.githubusercontent.com/114626248/234384783-d84f58d8-1515-4881-806e-9b3322dfb465.png)
 
-
+# Uso de la herramienta
 
 
 
