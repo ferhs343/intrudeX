@@ -1,4 +1,6 @@
 # Sec-Ops
 
-![image](https://user-images.githubusercontent.com/114626248/234376745-22748026-8b07-462f-aed1-30df415bbf4b.png)
+![image](https://user-images.githubusercontent.com/114626248/234378973-ceea868d-84ce-4aed-949a-f18577dde80f.png)
+
+
 
