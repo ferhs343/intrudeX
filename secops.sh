@@ -14,30 +14,6 @@ cyan="\e[1;94m"
 green="\e[1;92m"
 purple="\e[1;95m"
 
-function echo_yellow() {
-    echo -e "${yellow}"
-}
-
-function echo_red() {
-    echo -e "${red}"
-}
-
-function echo_cyan() {
-    echo -e "${cyan}"
-}
-
-function echo_green() {
-    echo -e "${green}"
-}
-
-function echo_purple() {
-    echo -e "${purple}"
-}
-
-function echo_default() {
-    echo -e "${default}"
-}
-
 #variables
 actual=$PWD
 new_directory="PCAPS"
@@ -74,39 +50,38 @@ options_pcap_analyzer=(
 #main banner
 function banner() {
 
-    echo_green
+    echo -e "${green}"
     echo -e '      ________  ______   ______             _____  __________   ________'
     echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
     echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
-    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/             $(echo_cyan)By: Luis Herrera :)$(echo_green)"
-    echo -e "                                                     |____|                          $(echo_cyan)V.1.0  "
-    echo -e "$(echo_red)\n -------------------------------------------------------------------------------------------------------"
+    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/             ${cyan}By: Luis Herrera :)${green}"
+    echo -e "                                                     |____|                          ${cyan}V.1.0  "
+    echo -e "${red}\n -------------------------------------------------------------------------------------------------------"
     echo -e " | The ideal tool to speed up the process of detecting basic attacks from a pcap file, as streamlining |"
     echo -e " | the processes of attacks on local networks.                                                         |"
-    echo -e " -------------------------------------------------------------------------------------------------------"
-    echo_default
+    echo -e " ------------------------------------------------------------------------------------------------------- ${default}"
 }
 
 #prompt
 function prompt_option() {
-    echo -e "\n$(echo_green)┌─[$(echo_red)${HOSTNAME}$(echo_green)]──[$(echo_red)~$(echo_green)]─[$(echo_yellow)/MainMenu/${name_option}/$(echo_green)]:"
+    echo -e "\n${green}┌─[${red}${HOSTNAME}${green}]──[${red}~${green}]─[${yellow}/MainMenu/${name_option}/${green}]:"
 }
 
 function prompt_suboption() {
-    echo -e "$(echo_green)┌─[$(echo_red)${HOSTNAME}$(echo_green)]──[$(echo_red)~$(echo_green)]─[$(echo_yellow)/MainMenu/PcapAnalyzer/${name_suboption}$(echo_green)]:"
+    echo -e "${green}┌─[${red}${HOSTNAME}${green}]──[${red}~${green}]─[${yellow}/MainMenu/PcapAnalyzer/${name_suboption}${green}]:"
 }
 
 #errors
 function error_option() {
-    echo -e "$(echo_red)\n ERROR, the specified option does not exist!\n\n$(echo_default)"
+    echo -e "${red}\n ERROR, the specified option does not exist!\n\n${default}"
 }
 
 function error_load_pcap() {
-    echo -e "$(echo_red)\n ERROR, the specified PCAP file does not exist!..\n\n$(echo_default)"
+    echo -e "${red}\n ERROR, the specified PCAP file does not exist!..\n\n${default}"
 }
 
 function error_instalation() {
-    echo -e "$(echo_red)\n [+] ERROR, an unexpected error occurred during installation!!$(echo_default)"
+    echo -e "${red}\n [+] ERROR, an unexpected error occurred during installation!!${default}"
 }
 
 #checking required tools
@@ -121,18 +96,18 @@ function tool_check() {
     tool_check=0
     no_tool=()
 
-    echo -e "$(echo_yellow)\n [+] Checking required tools.....$(echo_default)"
+    echo -e "${yellow}\n [+] Checking required tools.....${default}"
     sleep 0.2
 
     for i in "${required_tools[@]}"
     do
         if [[ $(which $i) ]];
         then
-            echo -e "\n$(echo_red)$(echo_green) [$i] $(echo_red)Tool is installed ........................................................ $(echo_green)[OK]$(echo_default)"
+            echo -e "\n${green} [$i] ${red}Tool is installed ........................................................ ${green}[OK]${default}"
             sleep 0.2
 
         else
-            echo -e "\n$(echo_red)$(echo_green) [$i] $(echo_red)Tool is installed ........................................................ [ERROR] $(echo_default)"
+            echo -e "\n${green} [$i] ${red}Tool is installed ........................................................ [ERROR] ${default}"
             tool_check=1
             no_tool+=("$i")
             sleep 1
@@ -144,13 +119,13 @@ function tool_check() {
         for tool in "${no_tool[@]}"
         do
 
-            echo -e "$(echo_yellow)\n\n [+] Installing Tool $(echo_green)[${tool}]$(echo_yellow), wait a moment.....$(echo_default)"
+            echo -e "${yellow}\n\n [+] Installing Tool ${green}[${tool}]${yellow}, wait a moment.....${default}"
 
             sudo apt install -fy $tool &>/dev/null
 
             if [ "$?" -eq 0 ];
             then
-                echo -e "$(echo_green)\n [+] Installation complete.$(echo_default)"
+                echo -e "${green}\n [+] Installation complete.${default}"
                 sleep 1
 
             else
@@ -160,7 +135,7 @@ function tool_check() {
             fi
         done
 
-        echo -e "$(echo_green)\n\n [+] Reloading......$(echo_default)"
+        echo -e "${green}\n\n [+] Reloading......${default}"
         sleep 2
         main_menu
     fi
@@ -208,12 +183,12 @@ function load_pcap() {
 
     clear
     banner
-    echo -e "\n\n $(echo_yellow)[OPTIONS] \n\n$(echo_green) [1] Back \n$(echo_default)"
-    echo -e "\n$(echo_yellow) Please, enter the path of PCAP file to analyze.$(echo_default)\n"
+    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Back \n${default}"
     check=0
 
     while [ "$check" -eq 0 ];
     do
+        echo -e "\n${yellow} Please, enter the path of PCAP file to analyze.${default}\n"
         prompt_suboption
         read -p "└─────► $(tput setaf 7)" path
 
@@ -223,7 +198,7 @@ function load_pcap() {
             check=1
 
         else
-            echo -e "\n$(echo_green) [+] Find ${path} .....$(echo_default)\n"
+            echo -e "\n${green} [+] Find ${path} .....${default}\n"
             sleep 2
 
             if [ -f "$path" ];
@@ -237,10 +212,11 @@ function load_pcap() {
 
                 cp $path $actual/$new_directory/capture-$i.pcap
 
-                echo -e "\n$(echo_greem) [+] Correct! File selected ==> ${path} \n"
-                echo -e "\n [+] Analyzing PCAP..... \n $(echo_default)"
+                echo -e "\n${green} [+] Correct! File selected ==> ${path} \n"
+                echo -e "\n [+] Analyzing PCAP..... \n ${default}"
                 sleep 2
                 detect_${name_suboption}
+                check=1
 
             else
 
@@ -249,7 +225,11 @@ function load_pcap() {
             fi
         fi
 
-        echo -e "\n$(echo_yellow) Please, if you analyze other PCAP file, enter de path of this, otherwise, press 1 for back.$(echo_default)\n"
+        if [ "$check" -eq 1 ];
+        then
+            echo -e "\n${yellow} Please, if you analyze other PCAP file, enter de path of this, otherwise, press 1 for back.${default}\n"
+            check=0
+        fi
     done
 }
 
@@ -259,8 +239,8 @@ function main_menu_option_1() {
     flag=0
     clear
     banner
-    echo -e "\n\n $(echo_yellow)[OPTIONS] \n\n$(echo_green) [1] TCP SYN Flood\n\n [2] Nmap Scan \n\n [3] Vlan Hopping\n\n [4] HSRP Attack\n\n [5] TCP Port Scan\n\n [6] ARP Spoofing\n\n [7] DHCP Spoofing\n\n [8] Back \n\n $(echo_default)"
-    echo -e "$(echo_yellow) Please, enter a option$(echo_default)\n"
+    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] TCP SYN Flood\n\n [2] Nmap Scan \n\n [3] Vlan Hopping\n\n [4] HSRP Attack\n\n [5] TCP Port Scan\n\n [6] ARP Spoofing\n\n [7] DHCP Spoofing\n\n [8] Back \n\n ${default}"
+    echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
     do
@@ -314,12 +294,12 @@ function main_menu() {
     clear
     banner
     tool_check
-    echo -e "\n\n $(echo_yellow)[OPTIONS] \n\n$(echo_green) [1] PCAP Analyze\n\n [2] Sniffing\n\n [3] Packet Manipulation\n\n [4] Layer 2 Attacks\n\n [5] Malicious Ip\n\n [6] Exit\n\n $(echo_default)"
-    echo -e "$(echo_yellow) Please, enter a option$(echo_default)\n"
+    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] PCAP Analyze\n\n [2] Sniffing\n\n [3] Packet Manipulation\n\n [4] Layer 2 Attacks\n\n [5] Malicious Ip\n\n [6] Exit\n\n ${default}"
+    echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
     do
-        echo -e "\n$(echo_green)┌─[$(echo_red)${HOSTNAME}$(echo_green)]──[$(echo_red)~$(echo_green)]─[$(echo_yellow)/MainMenu/$(echo_green)]:"
+        echo -e "\n${green}┌─[${red}${HOSTNAME}${green}]──[${red}~${green}]─[${yellow}/MainMenu/${green}]:"
         read -p "└─────► $(tput setaf 7)" option
 
         if [[ "$option" -gt 6 || "$option" -lt 1 ]];
