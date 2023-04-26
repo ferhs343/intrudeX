@@ -32,15 +32,42 @@ Como ya a sido mencionado anteriormente, Sec-Ops fué desarrollado para tener un
 
 En el siguiente ejemplo, se muestra como se a seleccionado la opcion 1, correspondiente a la funcionalidad de "PCAP analyze", para esta opción, están disponibles mas subopciones, por lo que se deberá seleccionar una. 
 
-![image](https://user-images.githubusercontent.com/114626248/234383676-8c6b1c45-0a87-4685-8e37-b6df90f7f21e.png)
+![image](https://user-images.githubusercontent.com/114626248/234672931-d3d7c7c9-a323-44ac-82b6-29d32e15554f.png)
 
-![image](https://user-images.githubusercontent.com/114626248/234383739-b359043b-4f54-4083-969f-7194f437ed7e.png)
+![image](https://user-images.githubusercontent.com/114626248/234673161-b6e2637f-9e6e-4dc0-9692-54bd45aeb1f2.png)
 
 Así mismo, en el prompt diseñado, se observa que cada vez que se selecciona una opción, muestra una navegación por la herramienta, siendo útil para un usuario nuevo, sirviendo como una pequeña guía.
 
-![image](https://user-images.githubusercontent.com/114626248/234384783-d84f58d8-1515-4881-806e-9b3322dfb465.png)
+![image](https://user-images.githubusercontent.com/114626248/234673269-ed24387f-22a6-43e9-8ca8-3c261bfd392c.png)
 
 # Uso de la herramienta
+
+Ahora, pasaremos a describir las funciones de la herramienta.
+
+## Opción PCAP Analyzer
+
+La opción "PCAP Analyzer" fue implementada con el principal proposito de detectar ataques básicos de un PCAP, filtrando los protocolos relevantes en cada ataque, y examinando cada paquete, buscando patrones que identifican si un ataque fue realizado.
+
+Actualmente, Sec-Ops tiene disponibles [n] ataques para detectar, los cuales se listan en el menu de la opcion "PCAP Analyzer":
+
+![image](https://user-images.githubusercontent.com/114626248/234681998-dc35f4c9-c9cd-4d2c-9593-9f85db2ced0c.png)
+
+Supongamos que un analista en seguridad informática quiere detectar rapidamente si un ataque "ARP Spoofing" fue producido, por lo que deberá seleccionar la opción "6" del menú mencionado anteriormente.
+
+![image](https://user-images.githubusercontent.com/114626248/234682563-419b0459-4b60-4198-b9d0-8f01aa8db1c7.png)
+
+Sec-Ops le pedirá al analista en seguridad informática ingresar un archivo PCAP a analizar, por lo que DEBERÁ ingresar la ruta donde se encuentra dicho PCAP.
+
+![image](https://user-images.githubusercontent.com/114626248/234682950-05946070-4907-4a6c-a389-fd21df8f73e6.png)
+
+Sec-Ops validará si la ruta especificada existe, si esta es correcta, Sec-Ops iniciará el proceso de extracción de datos relevantes del archivo PCAP
+
+![image](https://user-images.githubusercontent.com/114626248/234683244-f32a89a6-45f2-4e66-98a5-e68c6252a6dc.png)
+
+En el caso de que se especifique una ruta incorrecta, Sec-Ops detectará que hay un error, por lo que volverá a solicitar la especificación de la ruta del archivo PCAP a analizar.
+
+![image](https://user-images.githubusercontent.com/114626248/234683610-52ffabad-42a7-4e18-81aa-28316870d452.png)
+
 
 
 
