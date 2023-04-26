@@ -19,6 +19,7 @@ actual=$PWD
 new_directory="PCAPS"
 flag=0
 flag2=0
+instalation=0
 
 name_option=""
 name_suboption=""
@@ -119,9 +120,20 @@ function tool_check() {
         for tool in "${no_tool[@]}"
         do
 
-            echo -e "${yellow}\n\n [+] Installing Tool ${green}[${tool}]${yellow}, wait a moment.....${default}"
+            echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-            sudo apt install -fy $tool &>/dev/null
+            if [ $(cat /etc/*-release | grep "debian") ];
+            then
+                sudo apt install -fy $tool &>/dev/null
+
+            elif [ $(cat /etc/*-release | grep "arch") ];
+            then
+                sudo pacman -Syu $tool >/dev/null 2>&1
+
+            elif [ $(cat /etc/*-release | grep "centOS") ];
+            then
+                sudo yum -y install $tool >/dev/null 2>&1
+            fi
 
             if [ "$?" -eq 0 ];
             then
@@ -268,6 +280,7 @@ function main_menu_option_1() {
                     flag=1
                 fi
             done
+
         else
 
             error_option
@@ -280,7 +293,7 @@ function main_menu_option_1() {
 #exit
 function main_menu_option_6() {
 
-    echo -e "\nEXITING...\n"
+    echo -e "\nBYE!.\n"
     sleep 1
     clear
     exit
@@ -323,6 +336,7 @@ function main_menu() {
                     flag=1
                 fi
             done
+
         else
 
             error_option
