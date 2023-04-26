@@ -20,6 +20,7 @@ new_directory="PCAPS"
 flag=0
 flag2=0
 instalation=0
+id_file=1
 
 name_option=""
 name_suboption=""
@@ -122,15 +123,15 @@ function tool_check() {
 
             echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-            if [ $(cat /etc/*-release | grep "debian") ];
+            if [ $(grep -i "debian" /etc/*-release) ];
             then
                 sudo apt install -fy $tool &>/dev/null
 
-            elif [ $(cat /etc/*-release | grep "arch") ];
+            elif [ $(grep -i "arch" /etc/*-release) ];
             then
                 sudo pacman -Syu $tool >/dev/null 2>&1
 
-            elif [ $(cat /etc/*-release | grep "centOS") ];
+            elif [ $(grep -i "cent0S" /etc/*-release) ];
             then
                 sudo yum -y install $tool >/dev/null 2>&1
             fi
@@ -156,6 +157,7 @@ function tool_check() {
 #pcap analyzer options
 function pcap_analyzer_option_1() {
     load_pcap
+    detect_tcp_syn_flood
 }
 
 function pcap_analyzer_option_2() {
@@ -187,7 +189,7 @@ function pcap_analyzer_option_8 () {
 }
 
 function detect_tcp_syn_flood() {
-    echo " "
+    tshark -r $new_directory/capture-$id_file.pcap
 }
 
 #load pcap files
@@ -200,7 +202,7 @@ function load_pcap() {
 
     while [ "$check" -eq 0 ];
     do
-        echo -e "\n${yellow} Please, enter the path of PCAP file to analyze.${default}\n"
+        echo -e "\n${yellow} Enter the path of PCAP file to analyze.${default}\n"
         prompt_suboption
         read -p "└─────► $(tput setaf 7)" path
 
@@ -216,16 +218,15 @@ function load_pcap() {
             if [ -f "$path" ];
             then
 
-                i=1
-                while [ -f $actual/$new_directory/capture-$i.pcap ];
+                while [ -f $actual/$new_directory/capture-$id_file.pcap ];
                 do
-                    i=$((i+1))
+                    id_file=$((id_file+1))
                 done
 
-                cp $path $actual/$new_directory/capture-$i.pcap
+                cp $path $actual/$new_directory/capture-$id_file.pcap
 
                 echo -e "\n${green} [+] Correct! File selected ==> ${path} \n"
-                echo -e "\n [+] Analyzing PCAP..... \n ${default}"
+                echo -e "\n [+] Sniffing out finds..... \n ${default}"
                 sleep 2
                 detect_${name_suboption}
                 check=1
