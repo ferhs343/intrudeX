@@ -2,7 +2,7 @@
 
 # SEC-OPS, HERRAMIENTA QUE DETECTA ACTAQUES BASICOS DESDE UN ARCHIVO PCAP, ASI MISMO, AGILIZA EJECUCION DE ALGUNOS ATAQUES A REDES.
 # ELABORADO POR ==> LUIS HERRERA (21 ABRIL - ABRIL 2023)
-# ULTIMA MODIFICACIÓN ==> 26 ABRIL
+# ULTIMA MODIFICACIÓN ==> 27 ABRIL
 
 clear
 
@@ -17,6 +17,7 @@ purple="\e[1;95m"
 #variables
 actual=$PWD
 new_directory="PCAPS"
+directory_results="RESULTS"
 flag=0
 flag2=0
 instalation=0
@@ -125,7 +126,7 @@ function tool_check() {
 
             if [ $(grep -i "debian" /etc/*-release) ];
             then
-                sudo apt install -fy $tool &>/dev/null
+                sudo apt-get install -fy $tool &>/dev/null
 
             elif [ $(grep -i "arch" /etc/*-release) ];
             then
@@ -189,7 +190,19 @@ function pcap_analyzer_option_8 () {
 }
 
 function detect_tcp_syn_flood() {
-    tshark -r $new_directory/capture-$id_file.pcap
+
+    #filter for extract relevant data
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" &> test_1.txt
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1" &> test_2.txt
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1" -T fields -e "tcp.srcport" &> test_3.txt
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.src" &> test_4.txt
+    
+    extract_start=$(cat test_1.txt | awk '{print $2}' | head -n 2 | grep -v 'as' | awk -F'.' '{print $1}')
+    extract_end=$(cat test_1.txt | awk '{print $2}' | tail -n 1 | awk -F'.' '{print $1}')
+    
+    start_time=$((extract_start))
+    end_time=$((extract_end))
+    total_time=$((end_time - start_time))
 }
 
 #load pcap files
@@ -212,7 +225,7 @@ function load_pcap() {
             check=1
 
         else
-            echo -e "\n${green} [+] Find ${path} .....${default}\n"
+            echo -e "\n${green} [+] Finding ${path} .....${default}\n"
             sleep 2
 
             if [ -f "$path" ];
@@ -226,8 +239,8 @@ function load_pcap() {
                 cp $path $actual/$new_directory/capture-$id_file.pcap
 
                 echo -e "\n${green} [+] Correct! File selected ==> ${path} \n"
+		sleep 1
                 echo -e "\n [+] Sniffing out finds..... \n ${default}"
-                sleep 2
                 detect_${name_suboption}
                 check=1
 
@@ -352,6 +365,7 @@ function main_menu() {
 if [[ ! -d $new_directory ]];
 then
     mkdir $new_directory
+    mkdir $directory_results
 fi
 
 main_menu
