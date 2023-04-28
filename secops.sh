@@ -191,51 +191,82 @@ function pcap_analyzer_option_8 () {
 
 function detect_tcp_syn_flood() {
 
-    #files for extract metrics
-    test_filters=(
-	'syn_packets.txt'
-	'ack_packets.txt'
-	'src_ports.txt'
-	'src_ip.txt'
-    )
-
     requests_test=false
     ports_test=false
     srcip_test=false
+    
+    echo -e "\n${yellow} [+] ${count} Examining requests and replys.....${default}"
 
-    echo -e "\n${yellow} [+] ${count} Examining SYN requests.....${default}"
+    #file for extract seconds interval (5)
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" &> time.txt
     
     #filters for extract relevant data of PCAP
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" &> ${test_filters[0]}
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1" &> ${test_filters[1]}
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1" -T fields -e "tcp.srcport" &> ${test_filters[2]}
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.src" &> ${test_filters[3]}
+    filter1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" -T fields -e "tcp.srcport" 2> /dev/null)
+    packets=($filter1)
+    filter2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1" -T fields -e "tcp.srcport" 2> /dev/null)
+    ports=($filter2)
+    filter3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.src" 2> /dev/nul)
+    ip=($filter3)
+
+    #EXTRACT TOTAL OF REQUESTS (SYN)
+    requests=0
+    for i in "${packets[@]}"
+    do
+	requests=$((requests+1))
+    done
+    
+    #EXTRACT NUMBER OF REQUESTS IN 5 SECONDS (SYN)
+    time=$(cat time.txt | awk '{print $2}' | grep -v 'as' | awk -F'.' '{print $1}')
+    start_time=$(cat time.txt | awk '{print $2}' | head -n 2 | grep -v 'as' | awk -F'.' '{print $1}')
+    end_time=$(cat time.txt | awk '{print $2}' | tail -n 1 | awk -F'.' '{print $1}')
+    total_time=$(( $((end_time)) - $((start_time)) ))
     
     seconds=()
     
-    time=$(cat ${test_filters[0]} | awk '{print $2}' | grep -v 'as' | awk -F'.' '{print $1}')
-    start_time=$(cat ${test_filters[0]} | awk '{print $2}' | head -n 2 | grep -v 'as' | awk -F'.' '{print $1}')
-    
-    for i in $time
+    for j in $time
     do
-	seconds+=("$i")
-	if [ "$i" == "$((start_time+5))" ];
+	seconds+=("$j")
+	if [ "$j" == "$((start_time+5))" ];
 	then
 	    break
 	fi
     done
 
-    count=0
-    for j in "${seconds[@]}"
+    requests_5=0
+    for k in "${seconds[@]}"
     do
-	count=$((count+1))
+	requests_5=$((requests_5+1))
     done
 
-    if [ "$count" > 10000 ];
+    #EXTRACT TOTAL OF REPLYS (SYN/ACK)
+    replys=0
+    for l in "${ports[@]}"
+    do
+	replys=$((replys+1))
+    done
+
+    #DETECT ANOMALIES
+    if [[ "$requests_5" > 10000 && "$requests" > "$reply" ]];
     then
 	requests_test=true
-
     fi
+
+    #detect consecutive ports
+    port=0
+    count=0
+    for m in "${packets[@]}"
+    do
+	em=$((m))
+	port=$((em+1))
+	for (( o=$port;o<=$port+20;o++ ))
+	do
+	    if [ "$em" -eq "$((o-1))" ];
+	    then
+		count=$((count+1))
+	    fi
+	done
+    done
+    
 }
 
 #load pcap files
