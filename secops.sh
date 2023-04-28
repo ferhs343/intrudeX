@@ -191,18 +191,51 @@ function pcap_analyzer_option_8 () {
 
 function detect_tcp_syn_flood() {
 
-    #filter for extract relevant data
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" &> test_1.txt
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1" &> test_2.txt
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1" -T fields -e "tcp.srcport" &> test_3.txt
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.src" &> test_4.txt
+    #files for extract metrics
+    test_filters=(
+	'syn_packets.txt'
+	'ack_packets.txt'
+	'src_ports.txt'
+	'src_ip.txt'
+    )
+
+    requests_test=false
+    ports_test=false
+    srcip_test=false
+
+    echo -e "\n${yellow} [+] ${count} Examining SYN requests.....${default}"
     
-    extract_start=$(cat test_1.txt | awk '{print $2}' | head -n 2 | grep -v 'as' | awk -F'.' '{print $1}')
-    extract_end=$(cat test_1.txt | awk '{print $2}' | tail -n 1 | awk -F'.' '{print $1}')
+    #filters for extract relevant data of PCAP
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" &> ${test_filters[0]}
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1" &> ${test_filters[1]}
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1" -T fields -e "tcp.srcport" &> ${test_filters[2]}
+    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.src" &> ${test_filters[3]}
     
-    start_time=$((extract_start))
-    end_time=$((extract_end))
-    total_time=$((end_time - start_time))
+    seconds=()
+    
+    time=$(cat ${test_filters[0]} | awk '{print $2}' | grep -v 'as' | awk -F'.' '{print $1}')
+    start_time=$(cat ${test_filters[0]} | awk '{print $2}' | head -n 2 | grep -v 'as' | awk -F'.' '{print $1}')
+    
+    for i in $time
+    do
+	seconds+=("$i")
+	if [ "$i" == "$((start_time+5))" ];
+	then
+	    break
+	fi
+    done
+
+    count=0
+    for j in "${seconds[@]}"
+    do
+	count=$((count+1))
+    done
+
+    if [ "$count" > 10000 ];
+    then
+	requests_test=true
+
+    fi
 }
 
 #load pcap files
@@ -240,7 +273,6 @@ function load_pcap() {
 
                 echo -e "\n${green} [+] Correct! File selected ==> ${path} \n"
 		sleep 1
-                echo -e "\n [+] Sniffing out finds..... \n ${default}"
                 detect_${name_suboption}
                 check=1
 
@@ -365,7 +397,8 @@ function main_menu() {
 if [[ ! -d $new_directory ]];
 then
     mkdir $new_directory
-    mkdir $directory_results
+   # mkdir $directory_results
 fi
 
 main_menu
+
