@@ -2,7 +2,7 @@
 
 # SEC-OPS, HERRAMIENTA QUE DETECTA ACTAQUES BASICOS DESDE UN ARCHIVO PCAP, ASI MISMO, AGILIZA EJECUCION DE ALGUNOS ATAQUES A REDES.
 # ELABORADO POR ==> LUIS HERRERA (21 ABRIL - ABRIL 2023)
-# ULTIMA MODIFICACIÓN ==> 27 ABRIL
+# ULTIMA MODIFICACIÓN ==> 29 ABRIL
 
 clear
 
@@ -17,7 +17,6 @@ purple="\e[1;95m"
 #variables
 actual=$PWD
 new_directory="PCAPS"
-directory_results="RESULTS"
 flag=0
 flag2=0
 instalation=0
@@ -49,6 +48,15 @@ options_pcap_analyzer=(
     ["DHCP_spoofing"]=7
     ["Back"]=8
 )
+
+function frame() {
+    
+    repeat="-"
+    for (( i=0;i<=70;i++ ))
+    do
+	echo -n "$repeat"
+    done
+}
 
 #main banner
 function banner() {
@@ -191,82 +199,149 @@ function pcap_analyzer_option_8 () {
 
 function detect_tcp_syn_flood() {
 
-    requests_test=false
-    ports_test=false
-    srcip_test=false
-    
-    echo -e "\n${yellow} [+] ${count} Examining requests and replys.....${default}"
+    echo -e "\n${yellow} [+] ${count} Examining PCAP, wait a moment......${default}"
 
-    #file for extract seconds interval (5)
-    tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" &> time.txt
+    #extract number of SYN requests
+    syn=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" 2> /dev/null | wc -l)
     
-    #filters for extract relevant data of PCAP
-    filter1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" -T fields -e "tcp.srcport" 2> /dev/null)
-    packets=($filter1)
-    filter2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1" -T fields -e "tcp.srcport" 2> /dev/null)
-    ports=($filter2)
-    filter3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.src" 2> /dev/nul)
-    ip=($filter3)
+    #extract number of SYN / ACK replys
+    ack=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1" -T fields -e "tcp.srcport" 2> /dev/null | wc -l)
 
-    #EXTRACT TOTAL OF REQUESTS (SYN)
+    #extract host impacted
+    impact=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.dst" 2> /dev/null | uniq)
+
+    start_time=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" 2> /dev/null | awk '{print $2}' | awk -F'.' '{print $1}' | head -n 1)
+    end_time=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000" 2> /dev/null | awk '{print $2}' | awk -F'.' '{print $1}' | tail -n 1)
+    total_time=$(( ((end_time)) - ((start_time)) ))
+    
+    #extract time values
+    time=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000 && frame.number <= 100000" 2> /dev/null | awk '{print $2}' | awk -F'.' '{print $1}')
+    seconds_array=($time)
+
+    #extract source ports 
+    srcports=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000 && frame.number <= 100000" -T fields -e "tcp.srcport" 2> /dev/null)
+    srcports_array=($srcports)
+
+    #extract port(s) impacted
+    dstports=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000 && frame.number <= 100000" -T fields -e "tcp.dstport" 2> /dev/null | uniq)
+    dstports_array=($dstports)
+
+    #extract source ip
+    srcips=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000 && frame.number <= 100000" -T fields -e "ip.src" 2> /dev/null | uniq)
+    srcips_array=($srcips)
+
     requests=0
-    for i in "${packets[@]}"
+    start_second="${seconds_array[0]}"
+    
+    for second in "${seconds_array[@]}"
     do
 	requests=$((requests+1))
-    done
-    
-    #EXTRACT NUMBER OF REQUESTS IN 5 SECONDS (SYN)
-    time=$(cat time.txt | awk '{print $2}' | grep -v 'as' | awk -F'.' '{print $1}')
-    start_time=$(cat time.txt | awk '{print $2}' | head -n 2 | grep -v 'as' | awk -F'.' '{print $1}')
-    end_time=$(cat time.txt | awk '{print $2}' | tail -n 1 | awk -F'.' '{print $1}')
-    total_time=$(( $((end_time)) - $((start_time)) ))
-    
-    seconds=()
-    
-    for j in $time
-    do
-	seconds+=("$j")
-	if [ "$j" == "$((start_time+5))" ];
+	if [ "$second" == "$((start_second+5))" ];
 	then
 	    break
 	fi
     done
 
-    requests_5=0
-    for k in "${seconds[@]}"
+    ports=0
+    last_port="${srcports_array[0]}"
+    
+    for port in "${srcports_array[@]}"
     do
-	requests_5=$((requests_5+1))
+	actual_port=$((port))
+
+	if [ "$((last_port+1))" -eq "$((actual_port))" ];
+	then
+	    ports=$((ports+1))
+	fi
+
+	last_port=$((port))
     done
 
-    #EXTRACT TOTAL OF REPLYS (SYN/ACK)
-    replys=0
-    for l in "${ports[@]}"
+    ips=0
+    last_ip="${srcips_array[0]}"
+    
+    for ip in "${srcips_array[@]}" 
     do
-	replys=$((replys+1))
+	actual_ip=$ip
+
+	if [ "$actual_ip" != "$last_ip" ];
+	then
+	    ips=$((ips+1))
+	fi
+
+	last_ip=$ip
     done
 
-    #DETECT ANOMALIES
-    if [[ "$requests_5" > 10000 && "$requests" > "$reply" ]];
+    points=0
+    echo -e "\n${green} $(frame)\n  RESULTS \n $(frame) ${default}"
+    echo -e "\n${yellow}  [+] Host impacted ===> ${green}${impact} ${default}"
+
+    n_elements="${#dstports_array[@]}"
+    
+    if [ "$n_elements" -gt 1 ];
     then
-	requests_test=true
+
+	echo -ne "\n${yellow}  [+] Ports impacted  ===> "
+	
+	for dstport in "${dstports_array[@]}"
+	do
+	    port=$dstport
+	    echo -ne "${green} ${port} ${default}"
+	done
+	
+    else
+	
+	port="${dstports_array[0]}"
+	echo -ne "\n${yellow}  [+] Port impacted  ===> ${green}${port}${default}"
     fi
 
-    #detect consecutive ports
-    port=0
-    count=0
-    for m in "${packets[@]}"
-    do
-	em=$((m))
-	port=$((em+1))
-	for (( o=$port;o<=$port+20;o++ ))
-	do
-	    if [ "$em" -eq "$((o-1))" ];
-	    then
-		count=$((count+1))
-	    fi
-	done
-    done
+    echo -e "\n\n${green} $(frame)${default}"
     
+    if [[ "$requests" -gt 5000 && "$((ack))" -lt "$((syn))" ]];
+    then
+	echo -e "\n${yellow}  [+] SYN Requests in 5 seconds ===> ${red}${requests} [!]${default}"
+	points=$((points+1))
+
+    else
+	echo -e "\n${yellow}  [+] SYN Requests in 5 seconds ===> ${green}${requests}${default}"
+    fi
+
+    if [ "$((syn))" -gt 30000 ];
+    then
+	echo -e "\n${yellow}  [+] Total SYN Requests in ${total_time} seconds ===> ${red}${syn} [!]${default}"
+	points=$((points+1))
+	
+    else
+	echo -e "\n${yellow}  [+] Total SYN Requests ===> ${green}${syn}${default}"
+    fi
+
+    if [ "$ports" -gt 1000 ];
+    then
+	echo -e "\n${yellow}  [+] Consecutive source ports ===> ${red}Yes [!]${default}"
+	points=$((points+1))
+
+    else
+	echo -e "\n${yellow}  [+] Consecutive source ports ===> ${green}No${default}"
+    fi
+
+    if [ "$ips" -gt 1000 ];
+    then
+	echo -e "\n${yellow}  [+] Different IP in each request  ===> ${red}Yes [!]${default}"
+	points=$((points+1))
+
+    else
+	echo -e "\n${yellow}  [+]  Different IP in each request ===> ${green}No${default}"
+    fi
+
+    echo -e "\n${green} $(frame)${default}"
+
+    if [ "$points" -ge 2 ];
+    then
+	echo -e "\n${red}  [+] ALERT! Positive attack.${default}\n\n"
+
+    else
+	echo -e "\n${green}  [+] Nothing suspicious was found.${default}\n\n"
+    fi
 }
 
 #load pcap files
@@ -428,8 +503,6 @@ function main_menu() {
 if [[ ! -d $new_directory ]];
 then
     mkdir $new_directory
-   # mkdir $directory_results
 fi
 
 main_menu
-
