@@ -1,12 +1,13 @@
 #!/bin/bash
-
-# SEC-OPS, HERRAMIENTA QUE DETECTA ACTAQUES BASICOS DESDE UN ARCHIVO PCAP, ASI MISMO, AGILIZA EJECUCION DE ALGUNOS ATAQUES A REDES.
-# ELABORADO POR ==> LUIS HERRERA (21 ABRIL - ABRIL 2023)
-# ULTIMA MODIFICACIÓN ==> 1 MAYO
+#
+# SEC-OPS
+# --------
+# Herramienta para detectar ataques básicos a redes en archivos pcap.
+# Luis Herrera, Abril 2023
 
 clear
 
-#colours
+#colors
 default="\033[0m\e[0m"
 yellow="\e[1;93m"
 red="\e[1;91m"
@@ -15,7 +16,7 @@ green="\e[1;92m"
 purple="\e[1;95m"
 
 #variables
-actual=$PWD
+current=$PWD
 new_directory="PCAPS"
 flag=0
 flag2=0
@@ -60,17 +61,18 @@ function frame() {
 
 #main banner
 function banner() {
-
     echo -e "${green}"
     echo -e '      ________  ______   ______             _____  __________   ________'
     echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
     echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
-    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/             ${cyan}By: Luis Herrera :)${green}"
-    echo -e "                                                     |____|                          ${cyan}V.1.0  "
-    echo -e "${red}\n -------------------------------------------------------------------------------------------------------"
-    echo -e " | The ideal tool to speed up the process of detecting basic attacks from a pcap file, as streamlining |"
-    echo -e " | the processes of attacks on local networks.                                                         |"
-    echo -e " ------------------------------------------------------------------------------------------------------- ${default}"
+    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/      ${cyan}By: Luis Herrera :)${green}"
+    echo -e "                                                     |____|                   ${cyan}V.1.0"
+    echo -e "${red}"
+    echo -e " +-------------------------------------------------------------------------------------------------------------+"
+    echo -e " | Speed up the process of detecting basic attacks from a pcap file                                            |"
+    echo -e " | and streamline the processes of attacks to local networks.                                                  |"
+    echo -e " +-------------------------------------------------------------------------------------------------------------+"
+    echo -e "${default}"
 }
 
 #prompt
@@ -118,7 +120,7 @@ function tool_check() {
             sleep 0.2
 
         else
-            echo -e "\n${green} [$i] ${red}Tool is installed $(frame) [ERROR] ${default}"
+            echo -e "\n${green} [$i] ${red}Tool is installed $(frame) [ERROR]${default}"
             tool_check=1
             no_tool+=("$i")
             sleep 1
@@ -129,10 +131,9 @@ function tool_check() {
     then
         for tool in "${no_tool[@]}"
         do
-
             echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-            if [ $(grep -i "debian" /etc/*-release) ];
+            if [ $(`grep -i "debian" /etc/*-release`) ];
             then
                 sudo apt-get install -fy $tool &>/dev/null
 
@@ -267,9 +268,9 @@ function detect_tcp_syn_flood() {
     
 	for port in "${srcports_array[@]}"
 	do
-	    actual_port=$((port))
+	    current_port=$((port))
 
-	    if [ "$((last_port+1))" -eq "$((actual_port))" ];
+	    if [ "$((last_port+1))" -eq "$((current_port))" ];
 	    then
 		ports=$((ports+1))
 	    fi
@@ -288,9 +289,9 @@ function detect_tcp_syn_flood() {
     
 	for ip in "${srcip_array[@]}" 
 	do
-	    actual_ip=$ip
+	    current_ip=$ip
 
-	    if [ "$actual_ip" != "$last_ip" ];
+	    if [ "$current_ip" != "$last_ip" ];
 	    then
 		ips=$((ips+1))
 	    fi
@@ -387,12 +388,12 @@ function load_pcap() {
             if [ -f "$path" ];
             then
 
-                while [ -f $actual/$new_directory/capture-$id_file.pcap ];
+                while [ -f $current/$new_directory/capture-$id_file.pcap ];
                 do
                     id_file=$((id_file+1))
                 done
 
-                cp $path $actual/$new_directory/capture-$id_file.pcap
+                cp $path $current/$new_directory/capture-$id_file.pcap
 
                 echo -e "\n${green} [+] Correct! File selected ==> ${path} \n"
 		sleep 1
