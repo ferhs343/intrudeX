@@ -40,7 +40,7 @@ options=(
 #options in pcap analyzer
 declare -A options_pcap_analyzer
 options_pcap_analyzer=(
-    ["tcp_syn_flood"]=1
+    ["Denial_of_service"]=1
     ["nmap_scan"]=2
     ["vlan_hopping"]=3
     ["hsrp_attack"]=4
@@ -86,11 +86,11 @@ function prompt_suboption() {
 
 #errors
 function error_option() {
-    echo -e "${red}\n ERROR, the specified option does not exist!\n\n${default}"
+    echo -e "${red}\n ERROR, the specified option does not exist!!\n\n${default}"
 }
 
 function error_load_pcap() {
-    echo -e "${red}\n ERROR, the specified PCAP file does not exist!..\n\n${default}"
+    echo -e "${red}\n ERROR, the specified PCAP file does not exist!!\n\n${default}"
 }
 
 function error_instalation() {
@@ -167,7 +167,7 @@ function tool_check() {
 #pcap analyzer options
 function pcap_analyzer_option_1() {
     load_pcap
-    detect_tcp_syn_flood
+    detect_DoS
 }
 
 function pcap_analyzer_option_2() {
@@ -198,168 +198,100 @@ function pcap_analyzer_option_8 () {
     main_menu
 }
 
-function detect_tcp_syn_flood() {
+function slowloris() {
+
+   filters=(
+	
+	'tcp.flags.syn == 1'
+	'tcp.flags.syn == 0'
+	'tcp.flags.ack == 1'
+	'tcp.flags.ack == 0'
+	'tcp.dstport == ${port}'
+	'tcp.window_size < 1000'
+    )
+
+    groups=(
+	
+	'ip.src'
+	'ip.dst'
+	'tcp.srcport'
+	'tcp.dstport'
+    )
+    
+    input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${filters[0]} && ${filters[3]}" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
+    value=$((input1))
+    
+    if [ "$((input1))" -gt 100000 ];
+    then
+	limit=$(echo "$value * 10 / 100" | bc)
+	
+    else
+	limit=$((input1))
+    fi
+}
+
+function syn_flood() {
+
+}
+
+function detect_Denial_of_service() {
     
     echo -e "\n${green} [+] ${count}Getting ready......${default}"
 
-    #Extract number of total TCP packets in pcap
-    total_packets=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp && tcp.window_size <= 1000" 2> /dev/null | wc -l)
+    #    hping3                     scapy                    slowloris           
+    # un origen                   un origen                  un origen         
+    # spoofing                    spoofing                                    
+    # cualquier puerto(s)         cualquier puerto(s)            
+    # tamaño de ventana -         tamaño de ventana -         
+    # repuestas < solicitudes     respuestas < solicitudes                       
+    # miles de requets            miles de requests                             
+    #                                                        solo al puerto 80 o 443
+    #                                                        user agent: windows xp
+    #                                                        carga util
+    #                                                        psh,ack GET
+    #                                                        miles de conexiones abiertas
+    #                                                        error 400
 
-    if [ "$((total_packets))" -gt 100000 ];
+    icmp=$(tshark -r  $new_directory/capture-$id_file.pcap -Y "icmp" -T fields -e "ip.src" 2> /dev/null | wc -l)
+    tcp=$(tshark -r  $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "ip.src" 2> /dev/null | wc -l)
+    udp=$(tshark -r  $new_directory/capture-$id_file.pcap -Y "udp" -T fields -e "ip.src" 2> /dev/null | wc -l)
+
+    if [[ "$((icmp))" -gt "$((tcp))" && "$((icmp))" -gt "$((udp))" ]];
     then
-	limit=100000
-	echo -e "\n\n${green} [+] ${count}Examining 100,000 packets, wait a moment.${default}"
-
-    else
-	limit=$((total_packets))
-	echo -e "\n\n${green} [+] ${count}Examining ${total_packets} packets, wait a moment${default}"
-    fi
-
-    #Extract impacted port(s)
-    dstports=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.window_size < 1000 && frame.number <= ${limit}" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq)
-    dstports_array=($dstports)
-
-    #Extract impacted host
-    dstip=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.dst" 2> /dev/null | head -n 1)
-
-    requests_array=()
-    ports_array=()
-    ips_array=()
-
-    n_elements="${#dstports_array[@]}"
-    
-    for (( i=0;i<=n_elements-1;i++ ))
-    do
-
-	port="${dstports_array[$i]}"
+	echo -e "\n\n${green} [+] Examining ICMP......${default}\n"
 	
-	#Extract total SYN requests in each port
-	syn=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.dstport == ${port} && tcp.window_size < 1000 && frame.number <= ${limit}" 2> /dev/null | wc -l)
-	syn_array+=("$syn")
-	
-	#Extract total ACK replys in each port
-	ack=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 1 && tcp.srcport == ${port} && frame.number <= ${limit}" -T fields -e "tcp.srcport" 2> /dev/null | wc -l)
-	ack_array+=("$ack")
+    elif [[ "$((tcp))" -gt "$((icmp))" && "$((tcp))" -gt "$((udp))" ]];
+    then
 
-        fiveseconds=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.dstport == ${port} && tcp.window_size < 1000 && frame.number <= ${limit}" 2> /dev/null | awk '{print $2}' | awk -F'.' '{print $1}')
-	fiveseconds_array=($fiveseconds)
+	echo -e "\n\n${green} [+] Examining TCP......${default}\n"
 
-	requests=0
-	start_second="${fiveseconds_array[0]}"
-   
-        for second in "${fiveseconds_array[@]}"
-        do
-	    requests=$((requests+1))
-	    
-	    if [ "$second" == "$((start_second+5))" ];
-	    then
-		break
-	    fi
-	done
-	
-        requests_array+=("$requests")
-        unset fiveseconds_array[*]
+	input2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq)
+	array1=($input2)
 
-	srcports=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.dstport == ${port} && tcp.window_size < 1000 && frame.number <= ${limit}" -T fields -e "tcp.srcport" 2> /dev/null)
-	srcports_array=($srcports)
+	n_elements="${#array1[@]}"
 
-	ports=0
-	last_port="${srcports_array[0]}"
-    
-	for port in "${srcports_array[@]}"
-	do
-	    current_port=$((port))
-
-	    if [ "$((last_port+1))" -eq "$((current_port))" ];
-	    then
-		ports=$((ports+1))
-	    fi
-
-	    last_port=$((port))
-	done
-
-	ports_array+=("$ports")
-	unset srcports_array[*]
-
-	srcip=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && tcp.dstport == ${port} && tcp.window_size < 1000 && frame.number <= ${limit}" -T fields -e "ip.src" 2> /dev/null)
-	srcip_array=($(echo "$srcip" | tr ' ' '\n'))
-	
-	ips=0
-	last_ip="${srcip_array[0]}"
-    
-	for ip in "${srcip_array[@]}" 
-	do
-	    current_ip=$ip
-
-	    if [ "$current_ip" != "$last_ip" ];
-	    then
-		ips=$((ips+1))
-	    fi
-
-	    last_ip=$ip
-	done
-    
-       ips_array+=("$ips")
-       unset srcip_array[*]
-
-    done
-
-    points=0
-    echo -e "\n${green} $(frame)\n  RESULTS \n $(frame) ${default}"
-    echo -e "\n${yellow}  [+] Host impacted ===> ${green}${dstip} ${default}"
-    
-    for (( i=0;i<=$n_elements-1;i++ ))
-    do
-	
-	port="${dstports_array[$i]}"
-	
-	echo -e "\n${green} $(frame)${default}"
-	echo -e "\n${yellow}  [+] Port impacted ===> ${red}${port} ${default}"
-	echo -e "\n${green} $(frame)${default}"
-
-	if [ "${syn_array[$i]}" -gt 5000 ];
+	if [ "$n_elements" -gt 0 ];
 	then
-	    echo -e "\n${yellow}  [+] Total SYN Requests: ${red}${syn_array[$i]} [!]${default}"
-
-	    if [ "${ack_array[$i]}" -lt "${syn_array[$i]}" ];
-	    then
-		echo -e "\n${yellow}\t[+] Ack Replys: ${red}${ack_array[$i]} [!]${default}"
-
-		if [ "${ports_array[$i]}" -gt 500 ];
+	    for i in "$array1[@]"
+	    do
+		if [[ "$i" == 80 || "$i" == 443 ]];
 		then
-		    echo -e "\n${yellow}\t[+] Consecutive source ports: ${red}${ports_array[$i]} [!]${default}"
-		    
-		else
-		    echo -e "\n${yellow}\t[+] Consecutive source ports: ${green}${ports_array[$i]}${default}"
-		fi
+		    slowloris
 
-		if [ "${ips_array[$i]}" -gt 500 ];
-		then
-		    echo -e "\n${yellow}\t[+] Different IP addresses : ${red}${ips_array[$i]} [!]${default}"
-		    
 		else
-		    echo -e "\n${yellow}\t[+] Different IP addresses : ${green}${ips_array[$i]}${default}"
+		    syn_flood
 		fi
-
-		if [ "${requests_array[$i]}" -gt 1000 ];
-		then
-		    echo -e "\n${yellow}  [+] SYN Requests in 5 seconds: ${red}${requests_array[$i]} [!]${default}"
-		    
-		else
-		    echo -e "\n${yellow}  [+] SYN Requests in 5 seconds: ${green}${requests_array[$i]}${default}"
-		fi
-		
-	    else
-		echo -e "\n${yellow}  [+] Ack Replys: ${green}${ack_array[$i]}${default}"
-	    fi
-	       
+	    done
+	    
 	else
-	    echo -e "\n${yellow}  [+] Total SYN Requests: ${green}${syn_array[$i]}${default}"
+	    echo -e "\n${red} [+] ERROR, there are no packages to analyze!.${default}\n"
 	fi
-	
-    done
 
-    echo -e "\n${green} $(frame)${default}"
+    elif [[ "$((udp))" -gt "$((icmp))" && "$((udp))" -gt "$((tcp))" ]];
+    then
+	echo -e "\n\n${green} [+] Examining UDP......${default}\n"
+    fi
+  
 }
 
 #load pcap files
@@ -421,7 +353,7 @@ function main_menu_option_1() {
     flag=0
     clear
     banner
-    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] TCP SYN Flood\n\n [2] Nmap Scan \n\n [3] Vlan Hopping\n\n [4] HSRP Attack\n\n [5] TCP Port Scan\n\n [6] ARP Spoofing\n\n [7] DHCP Spoofing\n\n [8] Back \n\n ${default}"
+    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Denial of Service\n\n [2] Nmap Scan \n\n [3] Vlan Hopping\n\n [4] HSRP Attack\n\n [5] TCP Port Scan\n\n [6] ARP Spoofing\n\n [7] DHCP Spoofing\n\n [8] Back \n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -524,4 +456,5 @@ then
 fi
 
 main_menu
+
 
