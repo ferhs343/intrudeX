@@ -207,6 +207,7 @@ function slowloris() {
 	'tcp.flags.ack == 1'
 	'tcp.flags.ack == 0'
 	'tcp.dstport == ${port}'
+	'tcp.port == ${port}'
 	'tcp.window_size < 1000'
     )
 
@@ -216,14 +217,15 @@ function slowloris() {
 	'ip.dst'
 	'tcp.srcport'
 	'tcp.dstport'
+	'tcp.flags'
     )
 
-    input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${filters[0]} && ${filters[3]}" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
+    input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
     value=$((input1))
     
     if [ "$((input1))" -gt 100000 ];
     then
-	limit=$(echo "$value * 10 / 100" | bc)
+	limit=100000
 	
     else
 	limit=$((input1))
@@ -231,36 +233,83 @@ function slowloris() {
 
     #tiempo
     input2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" 2> /dev/null | awk '{print $2}' | head -n $limit | awk -F'.' '{print $1}')
-    array1=($input3)
+    array1=($input2)
 
-    #(tcp.flags.syn == 1 && tcp.flags.ack == 0) || (tcp.flags.syn == 1 && tcp.flags.ack == 1)
+    begin="${array1[0]}"
 
-    init="${array1[0]}"
-    array2=()
-    
-    #puertos y solicitudes en lapso del tiempo del array1
-    count=1
-    for i in "${array1[@]}"
+    input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[4]}" 2> /dev/null | head -n $limit)
+    array2=($input3)
+
+    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${filters[0]} && ${filters[3]}" -T fields -e "${groups[2]}" 2> /dev/null | head -n $limit)
+    array3=($input4)
+
+    n_elements="${#array1[@]}"
+    ports_syn=()
+    syn=0
+
+    j=0
+    for (( i=0;i<=$n_elements-1;i++ ))
     do
-	input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${filters[0]} && ${filters[3]}" -T fields -e "${groups[2]}" 2> /dev/null | head -n $count)
-	array2+=("$input4")
-	counter=$((counter+1))
-
-	if [ "$i" == "$((init+5))" ];
+	
+	if [ "${array2[$i]}" == "0x0002" ];
 	then
-
-	    for j in "${array2[@]}"
-	    do
-		
-	    done
-
+	    ports_syn+=("${array3[$j]}")
+	    j=$((j+1))
+	    
+	    if [ "${array3[$j-1]}" != "${array3[$j]}" ];
+	    then
+		syn=$((syn+1)) #checar esta parte
+	    fi
+	fi
+	
+	if [ "${array1[$i]}" == "$((begin+3))" ];
+	then
 	    break
 	fi
     done
-	
-    #puertos de origen multipos de 2 (la diferencia entre el anterior y el actual)
-    #filtrar primero por "tcp", por tiempo, y almacenarlos en array, y despues, volver a usar este filtro para contar las solicitudes SYN y puertos de origen
+
+    uniqs=$(echo "${ports_syn[@]}" | tr ' ' '\n' | sort | uniq)
+    unset ports_syn[*]
+    ports_syn=($uniqs)  #checar esta parte
+
+    n_elements="${#ports_syn[@]}"
+
+    if [ "$n_elements" -gt 1 ];
+    then
+	test=$(($n_elements / 2 | bc))
+
+    else
+	test=$$n_elements
+    fi
     
+    input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${ports_syn[$test]}" -T fields -e "${groups[4]}" 2> /dev/null)
+    array4=($input5)
+
+    n_elements="${#array4[@]}"
+    
+    psh=0
+    for (( i=0;i<=$n_elements-1;i++ ))
+    do
+	if [ "${array4[$i]}" == "0x0018" ];
+	then
+	    psh=$((psh+1))
+        fi
+    done
+
+    if [ "$psh" -gt 1 ];
+    then
+        input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port ==  ${ports_syn[$test]} && tcp.flags == 0x018" -T fields -e "tcp.segment_data" 2> /dev/null | xxd -r -p | tr -d ' ')
+	array5=($input6)
+	n_elements="${#array5[@]}"
+
+	if grep "GET/" "${array5[0]}" 2> /dev/null;
+	then
+	    echo "true" 
+	else
+	    echo "false"
+	fi
+    fi
+	
 }
 
 function syn_flood() {
@@ -305,9 +354,9 @@ function detect_Denial_of_service() {
 
 	if [ "$n_elements" -gt 0 ];
 	then
-	    for i in "$array1[@]"
+	    for i in "${array1[@]}"
 	    do
-		if [[ "$i" == 80 || "$i" == 443 ]];
+		if [[ "$i" == '80' || "$i" == '443' ]];
 		then
 		    slowloris
 
@@ -489,4 +538,5 @@ then
 fi
 
 main_menu
+
 
