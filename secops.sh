@@ -22,6 +22,7 @@ flag=0
 flag2=0
 instalation=0
 id_file=1
+techniques_verif=False
 
 name_option=""
 name_suboption=""
@@ -209,6 +210,9 @@ function slowloris() {
 	'tcp.dstport == ${port}'
 	'tcp.port == ${port}'
 	'tcp.window_size < 1000'
+	'http.response.code == 400'
+	'http.response.code == 408'
+	'tcp.flags == 0x018'
     )
 
     groups=(
@@ -218,7 +222,11 @@ function slowloris() {
 	'tcp.srcport'
 	'tcp.dstport'
 	'tcp.flags'
+	'http.response.code'
+	'tcp.segment_data'
     )
+
+    points=0
 
     input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
     value=$((input1))
@@ -237,7 +245,7 @@ function slowloris() {
 
     begin="${array1[0]}"
 
-    input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[4]}" 2> /dev/null | head -n $limit)
+    input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[4]}" 2> /dev/null | head -n $limit | tr -d '[0x]')
     array2=($input3)
 
     input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${filters[0]} && ${filters[3]}" -T fields -e "${groups[2]}" 2> /dev/null | head -n $limit)
@@ -251,14 +259,14 @@ function slowloris() {
     for (( i=0;i<=$n_elements-1;i++ ))
     do
 	
-	if [ "${array2[$i]}" == "0x0002" ];
+	if [ "${array2[$i]}" == "2" ];
 	then
 	    ports_syn+=("${array3[$j]}")
 	    j=$((j+1))
 	    
 	    if [ "${array3[$j-1]}" != "${array3[$j]}" ];
 	    then
-		syn=$((syn+1)) #checar esta parte
+		syn=$((syn+1))
 	    fi
 	fi
 	
@@ -270,7 +278,7 @@ function slowloris() {
 
     uniqs=$(echo "${ports_syn[@]}" | tr ' ' '\n' | sort | uniq)
     unset ports_syn[*]
-    ports_syn=($uniqs)  #checar esta parte
+    ports_syn=($uniqs)
 
     n_elements="${#ports_syn[@]}"
 
@@ -279,10 +287,10 @@ function slowloris() {
 	test=$(($n_elements / 2 | bc))
 
     else
-	test=$$n_elements
+	test=$n_elements
     fi
     
-    input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${ports_syn[$test]}" -T fields -e "${groups[4]}" 2> /dev/null)
+    input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${ports_syn[$test]}" -T fields -e "${groups[4]}" 2> /dev/null | tr -d '[0x]')
     array4=($input5)
 
     n_elements="${#array4[@]}"
@@ -290,26 +298,81 @@ function slowloris() {
     psh=0
     for (( i=0;i<=$n_elements-1;i++ ))
     do
-	if [ "${array4[$i]}" == "0x0018" ];
+	if [ "${array4[$i]}" == "18" ];
 	then
 	    psh=$((psh+1))
         fi
     done
 
+    payload=0
     if [ "$psh" -gt 1 ];
     then
         input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port ==  ${ports_syn[$test]} && tcp.flags == 0x018" -T fields -e "tcp.segment_data" 2> /dev/null | xxd -r -p | tr -d ' ')
 	array5=($input6)
 	n_elements="${#array5[@]}"
 
-	if grep "GET/" "${array5[0]}" 2> /dev/null;
+	input7=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${ports_syn[$test]} && (http.response.code == 408 || http.response.code == 400)" -T fields -e "http.response.code" 2> /dev/null)
+	array6=($input7)
+
+	if $(echo "${array5[0]}" | grep 'GET' 1> /dev/null);
 	then
-	    echo "true" 
-	else
-	    echo "false"
+	    if $(echo "${array5[2]}" | grep 'WindowsNT5.1' 1> /dev/null);
+	    then
+		
+		for (( i=4;i<=$n_elements-1;i++ ))
+		do
+		    if $(echo "${array5[$i]}" | grep 'X-a:b' 1> /dev/null);
+		    then
+			payload=$((payload+1))
+		    fi
+		done
+
+		code=1
+		for i in "${array6[@]}"
+		do
+		    if [[ "$i" == "400" || "$i" == "408" ]];
+		    then
+			code=0
+		    fi
+		done
+	    fi
 	fi
     fi
+
+    if [ "$syn" -gt 100 ];
+    then
+	points=$((points+1))
+
+	if [ "$payload" -gt 5 ];
+	then
+	    points=$((points+1))
+
+	    if [ "$code" -eq 0 ];
+	    then
+		points=$((points+1))
+	    fi
+        fi
+    fi
+
+    if [ "$points" -gt 1 ];
+    then
+	techniques_verif=True
+
+	echo -e "${green} $(frame)\n  Port impacted: ${red}80\n${green} $(frame)${default}"
+	echo -e "\n${yellow}  (+) Open conections in 3 seconds: ${red}${syn}${default}"
+	echo -e "\n${yellow}  (+) Random port analyzed: ${red}${ports_syn[$test]}${default}"
+	echo -e "\n${yellow}\t (+) HTTP Request: ${red}${array5[0]}${default}"
+	echo -e "\n${yellow}\t (+) User-Agent: ${red}${array5[2]}${default}"
+	echo -e "\n${yellow}\t (+) Suspicious payloads: ${red}${payload}${default}"
+	echo -ne "\n${yellow}\t (+) Response Code(s):${red}"
 	
+	for i in "${array6[@]}"
+	do
+	    echo -ne " $i ${default}"
+        done
+	
+	echo -e "\n\n${green} $(frame)${default}"
+    fi
 }
 
 function syn_flood() {
@@ -359,7 +422,12 @@ function detect_Denial_of_service() {
 		if [[ "$i" == '80' || "$i" == '443' ]];
 		then
 		    slowloris
-
+		    
+		    if [ "$techniques_verif" == "False" ];
+		    then
+			syn_flood
+		    fi
+		    
 		else
 		    syn_flood
 		fi
