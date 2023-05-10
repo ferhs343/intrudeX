@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #
 # SEC-OPS
@@ -16,7 +15,7 @@ cyan="\e[1;94m"
 green="\e[1;92m"
 purple="\e[1;95m"
 
-#variables
+#global variables
 current=$PWD
 new_directory="PCAPS"
 flag=0
@@ -24,22 +23,21 @@ flag2=0
 instalation=0
 id_file=1
 techniques_verif=False
-
 name_option=""
 name_suboption=""
 
-#options in main menu
+#main menu
 declare -A options
 options=(
     ["pcap_analyze"]=1
-    ["sniffing"]=2
+    ["network_scan"]=2
     ["packet_manipulation"]=3
     ["layer2_attacks"]=4
-    ["malicious_ip"]=5
+    ["detect_malicious_ip"]=5
     ["exit"]=6
 )
 
-#options in pcap analyzer
+#menu pcap analyzer
 declare -A options_pcap_analyzer
 options_pcap_analyzer=(
     ["Denial_of_service"]=1
@@ -120,8 +118,8 @@ function tool_check() {
         then
             echo -e "\n${green} [$i] ${red}Tool is installed $(frame) ${green}[OK]${default}"
             sleep 0.2
-
         else
+	    
             echo -e "\n${green} [$i] ${red}Tool is installed $(frame) [ERROR]${default}"
             tool_check=1
             no_tool+=("$i")
@@ -152,8 +150,8 @@ function tool_check() {
             then
                 echo -e "${green}\n [+] Installation complete.${default}"
                 sleep 1
-
             else
+		
                 error_instalation
                 sleep 2
                 main_menu_option_6
@@ -169,7 +167,6 @@ function tool_check() {
 #pcap analyzer options
 function pcap_analyzer_option_1() {
     load_pcap
-    detect_DoS
 }
 
 function pcap_analyzer_option_2() {
@@ -200,38 +197,42 @@ function pcap_analyzer_option_8 () {
     main_menu
 }
 
+# -------------------------------------------------------------------- Denial Of Service --------------------------------------------------------------------
 function slowloris() {
 
-   filters=(
-	
+# ESTA PARTE CONTINUA CON MODIFICACIONES -----------------------------------------------------------
+
+   filters=(	
 	'tcp.flags.syn == 1'
 	'tcp.flags.syn == 0'
 	'tcp.flags.ack == 1'
 	'tcp.flags.ack == 0'
-	'tcp.dstport == ${port}'
-	'tcp.port == ${port}'
-	'tcp.window_size < 1000'
+	'tcp.dstport == 80'
+	'tcp.dstport == 443'
 	'http.response.code == 400'
 	'http.response.code == 408'
 	'tcp.flags == 0x018'
+	'tcp.flags == 0x002'
+	'tcp.flags == 0x010'
     )
 
-    groups=(
-	
-	'ip.src'
+    groups=(	
 	'ip.dst'
 	'tcp.srcport'
 	'tcp.dstport'
 	'tcp.flags'
 	'http.response.code'
 	'tcp.segment_data'
+	'tcp.seq'
+	'tcp.ack'
     )
 
     points=0
 
+    #extract total of TCP packets
     input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
     value=$((input1))
-    
+
     if [ "$((input1))" -gt 100000 ];
     then
 	limit=100000
@@ -240,75 +241,72 @@ function slowloris() {
 	limit=$((input1))
     fi
 
-    #tiempo
+    #extract seconds values 
     input2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" 2> /dev/null | awk '{print $2}' | head -n $limit | awk -F'.' '{print $1}')
     array1=($input2)
 
     begin="${array1[0]}"
 
-    input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[4]}" 2> /dev/null | head -n $limit | tr -d '[0x]')
+    #extract TCP flags 
+    input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags == 0x002 || tcp.flags == 0x012 || tcp.flags == 0x010" -T fields -e "tcp.flags" 2> /dev/null | head -n $limit | tr -d '[0x]')
     array2=($input3)
 
-    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${filters[0]} && ${filters[3]}" -T fields -e "${groups[2]}" 2> /dev/null | head -n $limit)
+    #extract source ports
+    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit)
     array3=($input4)
-    
-    
-    # SE PLANEA IMPLEMENTAR NUEVO METODO, MAS EFICIENTE, EXAMINANDO NUMEROS DE SECUENCIA Y ACUSES DE RECIBO
-    
-    n_elements="${#array1[@]}"
-    srcports=()
-    syn=0
-    j=0
-    k=0
 
-    p=0
-    q=0
-    r=0
-    for i in "${array1[@]}"
+    #extract sequence numbers
+    input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags == 0x002 || tcp.flags == 0x012 || tcp.flags == 0x010" -T fields -e "tcp.seq" 2> /dev/null | head -n $limit)
+    array4=($input5)
+
+    #extract Acknowledgment
+    input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags == 0x002 || tcp.flags == 0x012 || tcp.flags == 0x010" -T fields -e "tcp.ack" 2> /dev/null | head -n $limit)
+    array5=($input6)
+    
+    n_elements="${#array3[@]}"
+    srcports=()
+    openned=0
+    
+    j=0 #flags counter
+    a=0 #acknowledgment counter
+    s=0 #sequence number counter
+    m=0 #source ports counter
+    syn=1
+    synack=1
+    ack=1
+    
+    #detect openned conections in 5 seconds
+    n_elements="${#array1[@]}"
+	
+    for (( i=0;i<=$n_elements-1;i++ ))
     do
 	if [ "${array2[$j]}" == "2" ];
+        then
+	    syn=0
+
+	elif [ "${array[$j]}" == "12" ];
 	then
-	    synn=0
-	    p=$((p+1))
+      	    if [ "$syn" -eq 0 ];
+	    then
+		synack=0
+	    fi
 
-	elif [ "${array2[$j]}" == "12" ];
+	elif [ "${array[$j]}" == "1" ];
 	then
-	    synack=0
-	     q=$((q+1))
-
-        elif [ "${array2[$j]}" == "1" ];
+	    if [ "$synack" -eq 0 ];
+	    then
+		ack=0
+		
+	    fi
+	fi
+	
+	if [ "${array1[$i]}" == "$((begin+5))" ];
 	then
-	    ack=0
-	    r=$((r+1))
-
-	    if [ "$synn" -eq 0 ];
-	    then 
-		if [ "$synack" -eq 0 ];
-		then
-	       	    if [ "${array3[$k-1]}" != "${array3[$k]}" ];
-		    then
-			syn=$((syn+1))
-			srcports+=("${array3[$k]}")
-			k=$((k+1))
-			synn=1
-			synack=1
-			ack=1
-		    fi
-		fi
-            fi
-        fi
-
-        if [ "$i" == "$((begin+5))" ];
-      	then
 	    break
 	fi
-
-	j=$((j+1))
     done
-
-    echo $p
-    echo $q
-    echo $r
+    
+    echo $openned
 
    # uniqs=$(echo "${srcports[@]}" | tr ' ' '\n' | sort | uniq)
    # unset srcports[*]
@@ -491,13 +489,13 @@ function load_pcap() {
         echo -e "\n${yellow} Enter the path of PCAP file to analyze.${default}\n"
         prompt_suboption
         read -p "└─────► $(tput setaf 7)" path
-
+	
         if [ "$path" == "1" ];
         then
             main_menu_option_1
             check=1
-
         else
+	    
             echo -e "\n${green} [+] Finding ${path} .....${default}\n"
             sleep 2
 
@@ -515,14 +513,13 @@ function load_pcap() {
 		sleep 1
                 detect_${name_suboption}
                 check=1
-
             else
-
+		
                 error_load_pcap
                 check=0
             fi
         fi
-
+	
         if [ "$check" -eq 1 ];
         then
             echo -e "\n\n${yellow} Please, if you analyze other PCAP file, enter de path of this, otherwise, press 1 for back.${default}\n"
@@ -548,8 +545,8 @@ function main_menu_option_1() {
         if [[ "$suboption" -gt 8 || "$option" -lt 1 ]];
         then
             flag2=1
-
         else
+	    
             flag2=0
         fi
 
@@ -566,9 +563,8 @@ function main_menu_option_1() {
                     flag=1
                 fi
             done
-
         else
-
+	    
             error_option
             flag=0
             flag2=0
@@ -593,7 +589,7 @@ function main_menu() {
     clear
     banner
     tool_check
-    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] PCAP Analyze\n\n [2] Sniffing\n\n [3] Packet Manipulation\n\n [4] Layer 2 Attacks\n\n [5] Malicious Ip\n\n [6] Exit\n\n ${default}"
+    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] PCAP Analyze\n\n [2] Network Scan\n\n [3] Packet Manipulation\n\n [4] Layer 2 Attacks\n\n [5] Detect Malicious Ip\n\n [6] Exit\n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -604,8 +600,8 @@ function main_menu() {
         if [[ "$option" -gt 6 || "$option" -lt 1 ]];
         then
             flag2=1
-
         else
+	    
             flag2=0
         fi
 
@@ -615,14 +611,13 @@ function main_menu() {
             do
                 value="${options[$key]}"
                 name_option=$key
-
+		
                 if [ "$option" == "$value" ];
                 then
                     main_menu_option_${value}
                     flag=1
                 fi
             done
-
         else
 
             error_option
@@ -640,3 +635,4 @@ then
 fi
 
 main_menu
+
