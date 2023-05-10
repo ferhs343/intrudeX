@@ -1,3 +1,4 @@
+
 #!/bin/bash
 #
 # SEC-OPS
@@ -250,129 +251,162 @@ function slowloris() {
 
     input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${filters[0]} && ${filters[3]}" -T fields -e "${groups[2]}" 2> /dev/null | head -n $limit)
     array3=($input4)
-
+    
+    
+    # SE PLANEA IMPLEMENTAR NUEVO METODO, MAS EFICIENTE, EXAMINANDO NUMEROS DE SECUENCIA Y ACUSES DE RECIBO
+    
     n_elements="${#array1[@]}"
-    ports_syn=()
+    srcports=()
     syn=0
-
     j=0
-    for (( i=0;i<=$n_elements-1;i++ ))
+    k=0
+
+    p=0
+    q=0
+    r=0
+    for i in "${array1[@]}"
     do
-	
-	if [ "${array2[$i]}" == "2" ];
+	if [ "${array2[$j]}" == "2" ];
 	then
-	    ports_syn+=("${array3[$j]}")
-	    j=$((j+1))
-	    
-	    if [ "${array3[$j-1]}" != "${array3[$j]}" ];
-	    then
-		syn=$((syn+1))
-	    fi
-	fi
-	
-	if [ "${array1[$i]}" == "$((begin+3))" ];
+	    synn=0
+	    p=$((p+1))
+
+	elif [ "${array2[$j]}" == "12" ];
 	then
+	    synack=0
+	     q=$((q+1))
+
+        elif [ "${array2[$j]}" == "1" ];
+	then
+	    ack=0
+	    r=$((r+1))
+
+	    if [ "$synn" -eq 0 ];
+	    then 
+		if [ "$synack" -eq 0 ];
+		then
+	       	    if [ "${array3[$k-1]}" != "${array3[$k]}" ];
+		    then
+			syn=$((syn+1))
+			srcports+=("${array3[$k]}")
+			k=$((k+1))
+			synn=1
+			synack=1
+			ack=1
+		    fi
+		fi
+            fi
+        fi
+
+        if [ "$i" == "$((begin+5))" ];
+      	then
 	    break
 	fi
+
+	j=$((j+1))
     done
 
-    uniqs=$(echo "${ports_syn[@]}" | tr ' ' '\n' | sort | uniq)
-    unset ports_syn[*]
-    ports_syn=($uniqs)
+    echo $p
+    echo $q
+    echo $r
 
-    n_elements="${#ports_syn[@]}"
+   # uniqs=$(echo "${srcports[@]}" | tr ' ' '\n' | sort | uniq)
+   # unset srcports[*]
+   # srcports=($uniqs)
 
-    if [ "$n_elements" -gt 1 ];
-    then
-	test=$(($n_elements / 2 | bc))
+    #n_elements="${#srcports[@]}"
 
-    else
-	test=$n_elements
-    fi
+   # if [ "$n_elements" -gt 1 ];
+   # then
+#	test=$(($n_elements / 2 | bc))
+
+ #   else
+#	test=$n_elements
+ #   fi
     
-    input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${ports_syn[$test]}" -T fields -e "${groups[4]}" 2> /dev/null | tr -d '[0x]')
+  #  input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${srcports[$test]}" -T fields -e "${groups[4]}" 2> /dev/null | tr -d '[0x]')
     array4=($input5)
 
-    n_elements="${#array4[@]}"
+   # n_elements="${#array4[@]}"
     
-    psh=0
-    for (( i=0;i<=$n_elements-1;i++ ))
-    do
-	if [ "${array4[$i]}" == "18" ];
-	then
-	    psh=$((psh+1))
-        fi
-    done
+   # psh=0
+   # for (( i=0;i<=$n_elements-1;i++ ))
+   # do
+#	if [ "${array4[$i]}" == "18" ];
+#	then
+#	    psh=$((psh+1))
+ #       fi
+  #  done
 
-    payload=0
-    if [ "$psh" -gt 1 ];
-    then
-        input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port ==  ${ports_syn[$test]} && tcp.flags == 0x018" -T fields -e "tcp.segment_data" 2> /dev/null | xxd -r -p | tr -d ' ')
-	array5=($input6)
-	n_elements="${#array5[@]}"
+  #  payload=0
+   # if [ "$psh" -gt 1 ];
+   # then
+    #    input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port ==  ${srcports[$test]} && tcp.flags == 0x018" -T fields -e "tcp.segment_data" 2> /dev/null | xxd -r -p | tr -d ' ')
+#	array5=($input6)
+#	n_elements="${#array5[@]}"
 
-	input7=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${ports_syn[$test]} && (http.response.code == 408 || http.response.code == 400)" -T fields -e "http.response.code" 2> /dev/null)
-	array6=($input7)
+#	input7=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${srcports[$test]} && (http.response.code == 408 || http.response.code == 400)" -T fields -e "http.response.code" 2> /dev/null)
+#	array6=($input7)
 
-	if $(echo "${array5[0]}" | grep 'GET' 1> /dev/null);
-	then
-	    if $(echo "${array5[2]}" | grep 'WindowsNT5.1' 1> /dev/null);
-	    then
+#	if $(echo "${array5[0]}" | grep 'GET' 1> /dev/null);
+#	then
+#	    if $(echo "${array5[2]}" | grep 'WindowsNT5.1' 1> /dev/null);
+#	    then
 		
-		for (( i=4;i<=$n_elements-1;i++ ))
-		do
-		    if $(echo "${array5[$i]}" | grep 'X-a:b' 1> /dev/null);
-		    then
-			payload=$((payload+1))
-		    fi
-		done
+#		for (( i=4;i<=$n_elements-1;i++ ))
+#		do
+#		    if $(echo "${array5[$i]}" | grep 'X-a:b' 1> /dev/null);
+#		    then
+#			payload=$((payload+1))
+#		    fi
+#		done
 
-		code=1
-		for i in "${array6[@]}"
-		do
-		    if [[ "$i" == "400" || "$i" == "408" ]];
-		    then
-			code=0
-		    fi
-		done
-	    fi
-	fi
-    fi
+#		code=1
+#		for i in "${array6[@]}"
+#		do
+#		    if [[ "$i" == "400" || "$i" == "408" ]];
+#		    then
+#			code=0
+#		    fi
+#		done
+	#    fi
+#	fi
+ #   fi
 
-    if [ "$syn" -gt 100 ];
-    then
-	points=$((points+1))
+  #  if [ "$syn" -gt 100 ];
+   # then
+#	points=$((points+1))
+#
+#	if [ "$payload" -gt 5 ];
+#	then
+#	    points=$((points+1))
+#
+#	    if [ "$code" -eq 0 ];
+#	    then
+#		points=$((points+1))
+#	    fi
+ #       fi
+  #  fi
+#
+ #   if [ "$points" -gt 1 ];
+  #  then
+#	techniques_verif=True
 
-	if [ "$payload" -gt 5 ];
-	then
-	    points=$((points+1))
-
-	    if [ "$code" -eq 0 ];
-	    then
-		points=$((points+1))
-	    fi
-        fi
-    fi
-
-    if [ "$points" -gt 1 ];
-    then
-	techniques_verif=True
-
-	echo -e "${green} $(frame)\n  Port impacted: ${red}80\n${green} $(frame)${default}"
-	echo -e "\n${yellow}  (+) Open conections in 3 seconds: ${red}${syn}${default}"
-	echo -e "\n${yellow}  (+) Random port analyzed: ${red}${ports_syn[$test]}${default}"
-	echo -e "\n${yellow}\t (+) HTTP Request: ${red}${array5[0]}${default}"
-	echo -e "\n${yellow}\t (+) User-Agent: ${red}${array5[2]}${default}"
-	echo -e "\n${yellow}\t (+) Suspicious payloads: ${red}${payload}${default}"
-	echo -ne "\n${yellow}\t (+) Response Code(s):${red}"
-	
-	for i in "${array6[@]}"
-	do
-	    echo -ne " $i ${default}"
-        done
-	
-	echo -e "\n\n${green} $(frame)${default}"
-    fi
+#	echo -e "${green} $(frame)\n  Port impacted: ${red}80\n${green} $(frame)${default}"
+#	echo -e "\n${yellow}  (+) Open conections in 5 seconds: ${red}${syn}${default}"
+#	echo -e "\n${yellow}  (+) Random port analyzed: ${red}${srcports[$test]}${default}"
+#	echo -e "\n${yellow}\t (+) HTTP Request: ${red}${array5[0]}${default}"
+#	echo -e "\n${yellow}\t (+) User-Agent: ${red}${array5[2]}${default}"
+#	echo -e "\n${yellow}\t (+) Suspicious payloads: ${red}${payload}${default}"
+#	echo -ne "\n${yellow}\t (+) Response Code(s):${red}"
+#	
+#	for i in "${array6[@]}"
+#	do
+#	    echo -ne " $i ${default}"
+ #       done
+#	
+#	echo -e "\n\n${green} $(frame)${default}"
+ #   fi
 }
 
 function syn_flood() {
@@ -606,5 +640,3 @@ then
 fi
 
 main_menu
-
-
