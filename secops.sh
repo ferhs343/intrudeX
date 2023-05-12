@@ -249,33 +249,25 @@ function slowloris() {
     #extract number of source ports
     input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit | sort | uniq | wc -l)
 
-    #extract source ports
+    #extract each source port
     input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit)
     array2=($input4)
 
-    #extract flags
+    #extract TCP flags
     input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.flags" 2> /dev/null | head -n $limit | tr -d '[0x]')
     array3=($input5)
-
-    #extract sequence numbers
-    input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags == 0x002 || tcp.flags == 0x012 || tcp.flags == 0x010" -T fields -e "tcp.seq" 2> /dev/null | head -n $limit)
-    array4=($input6)
-
-    #extract Acknowledgment
-    input7=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags == 0x002 || tcp.flags == 0x012 || tcp.flags == 0x010" -T fields -e "tcp.ack" 2> /dev/null | head -n $limit)
-    array5=($input7)
     
     #detect openned conections in 5 seconds
     openned=0
-    array6=()
+    array4=()
 
-    if [ "$input3" -gt 1 ];
+    if [ "$input3" -gt 1 ]; #check if the number of source ports is > 1, this indicates SYN conections
     then
-	for (( i=0;i<=$n_elements-1;i++ ))
+	for (( i=0;i<=$n_elements-1;i++ )) #extract the source ports in the first 5 seconds
 	do
-	    if [ "${array3[$i]}" == "2" ];
+	    if [ "${array3[$i]}" == "2" ]; 
 	    then
-		array6+=("${array2[$i]}")
+		array4+=("${array2[$i]}")
 	    fi
 	    
 	    if [ "${array1[$i]}" == "$((begin+5))" ];
@@ -284,18 +276,24 @@ function slowloris() {
 	    fi
 	done
 
-	n_elements="${#array6[@]}"
-	
-	for (( i=0;i<=$n_elements;i++ ))
+	n_elements="${#array4[@]}"
+
+	for (( i=0;i<=$n_elements;i++ )) #if there are duplicate source ports, delete them
         do
 	    for (( j=$i+1;j<=$n_elements;j++ ))
 	    do
-		if [ "${array6[$i]}" == "${array6[$j]}" ];
+		if [ "${array4[$i]}" == "${array4[$j]}" ];
 		then
-		    unset array6[$j]
+		    unset array4[$j]
 		fi
 	    done
 	done
+
+	n_elements="${#array4[@]}"
+
+	
+    else
+	 echo -e "\n\n${greem} (+) No malicious patterns found.${default}\n"
     fi		     
 
 }
