@@ -52,10 +52,9 @@ options_pcap_analyzer=(
 
 function frame() {
     
-    repeat="."
     for (( i=0;i<=70;i++ ))
     do
-	echo -n "$repeat"
+	echo -n $1
     done
 }
 
@@ -116,11 +115,11 @@ function tool_check() {
     do
         if [[ $(which $i) ]];
         then
-            echo -e "\n${green} [$i] ${red}Tool is installed $(frame) ${green}[OK]${default}"
+            echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) ${green}[OK]${default}"
             sleep 0.2
         else
 	    
-            echo -e "\n${green} [$i] ${red}Tool is installed $(frame) [ERROR]${default}"
+            echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [ERROR]${default}"
             tool_check=1
             no_tool+=("$i")
             sleep 1
@@ -257,7 +256,7 @@ function slowloris() {
     input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit | sort | uniq | wc -l)
 
     #extract source ports
-    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit)
+    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit)
     array2=($input4)
 
     #extract flags
@@ -307,7 +306,7 @@ function slowloris() {
 		if [ "$synack" -eq 0 ];
 		then
 		    ack2="${array5[$i]}"
-		    
+
 		    if [ "$((ack2))" -eq "$((seq2+1))" ];
 		    then
 			handshake=True
@@ -319,19 +318,6 @@ function slowloris() {
 	    then
 		openned=$((openned+1))
 		array6+=("${array2[$i]}")
-
-		if [ "$i" -gt 0 ];
-		then
-		    if [ "${array6[$i]}" == "${array6[$i-1]}" ];
-		    then
-			while [ "${array6[$i]}" == "${array6[$i-1]}" ];
-			do
-			    unset array6[$i]
-			    array6+=("${array2[((i+=1))]}")
-		        done
-		    fi
-		fi
-			  
 		syn=1
 		synack=1
 		handshake=False
@@ -343,7 +329,65 @@ function slowloris() {
 	    fi
 	done
 
-	echo "${#array6[@]}"
+        n_elements="${#array6[@]}"
+
+	if [ "$openned" -gt 1 ];
+	then
+	    test=$(($n_elements / 2 | bc))
+	    input8=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]} && tcp.flags.push == 1" -T fields -e "tcp.segment_data" 2> /dev/null)
+	    array7=($input8)
+	    n_elements="${#array7[@]}"
+	    echo $n_elements
+	    
+	    input9=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]}" 2> /dev/null | awk '{print $2}' | awk -F'.' '{print $1}')
+	    array8=($input9)
+	    start="${array8[0]}"
+	    end="${array8[-1]}"
+	    time=$((end-start))
+
+	    for (( i=0;i<=$n_elements;i++ ))
+	    do
+		if echo "${array7[$i]}" | grep '454754202f3f' 1> /dev/null;
+		then
+		    method="GET"
+		    
+		    if echo "${array7[$i]}" | grep '57696e646f7773204e5420352e31' 1> /dev/null;
+		    then
+			user_agent="Windows NT 5.1"
+		    fi
+	        fi
+
+		if echo "${array7[$i]}" | grep '582d613a2062' 1> /dev/null;
+		then
+		    data="X-a: b"
+		fi
+	    done
+	fi
+
+	if [ "$n_elements" -ge 5 ];
+	then
+	    if [ "$method" == "GET" ];
+	    then
+		if [ "$time" -gt 10 ];
+		then
+		    techniques_verif=True
+
+		else
+		    techniques_verif=False
+		fi
+	    fi
+	fi
+
+	if [ "$techniques_verif" == "False" ];
+	then
+	    syn_flood
+	    
+	else
+	    echo -e "${green}\n $(frame -)\n  Host impacted: \n $(frame -) ${default}"
+	fi
+	
+    else
+        echo -e "\n\n${green} [+] SecOps dont found anomalies.${default}\n"
     fi		     
 
 }
@@ -395,11 +439,6 @@ function detect_Denial_of_service() {
 		if [[ "$i" == '80' || "$i" == '443' ]];
 		then
 		    slowloris
-		    
-		    if [ "$techniques_verif" == "False" ];
-		    then
-			syn_flood
-		    fi
 		    
 		else
 		    syn_flood
@@ -576,5 +615,4 @@ then
 fi
 
 main_menu
-
 
