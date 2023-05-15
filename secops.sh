@@ -65,12 +65,12 @@ function banner() {
     echo -e '      ________  ______   ______             _____  __________   ________'
     echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
     echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
-    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/      ${cyan}By: Luis Herrera :)${green}"
-    echo -e "                                                     |____|                   ${cyan}V.1.0"
+    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/  \t\t ${cyan}By: Luis Herrera :)${green}"
+    echo -e "                                                     |____|               \t\t ${cyan}V.1.0"
     echo -e "${red}"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
-    echo -e " | Speed up the process of detecting basic attacks from a pcap file                                            |"
-    echo -e " | and streamline the processes of attacks to local networks.                                                  |"
+    echo -e " | Speed up the process of detecting basic attacks from a pcap file and streamline                             |"
+    echo -e " | the processes of attacks to local networks.                                                                 |"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
     echo -e "${default}"
 }
@@ -227,6 +227,13 @@ function slowloris() {
 
     points=0
 
+    #extract host impacted
+    host_impacted=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.dst" 2> /dev/null | head -n 1)
+    
+    #extract port impacted
+    port_impacted=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq | grep '80\|443')
+    array=($port_impacted)
+    
     #extract total of TCP packets
     input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
     value=$((input1))
@@ -249,51 +256,96 @@ function slowloris() {
     #extract number of source ports
     input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit | sort | uniq | wc -l)
 
-    #extract each source port
-    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit)
+    #extract source ports
+    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit)
     array2=($input4)
 
-    #extract TCP flags
+    #extract flags
     input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.flags" 2> /dev/null | head -n $limit | tr -d '[0x]')
     array3=($input5)
+
+    #extract sequence numbers
+    input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.seq" 2> /dev/null | head -n $limit)
+    array4=($input6)
+
+    #extract Acknowledgment
+    input7=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.ack" 2> /dev/null | head -n $limit)
+    array5=($input7)
     
     #detect openned conections in 5 seconds
     openned=0
-    array4=()
+    array6=()
 
-    if [ "$input3" -gt 1 ]; #check if the number of source ports is > 1, this indicates SYN conections
+    syn=1
+    synack=1
+    handshake=False
+    j=0
+    
+    if [ "$input3" -gt 1 ];
     then
-	for (( i=0;i<=$n_elements-1;i++ )) #extract the source ports in the first 5 seconds
+	for (( i=0;i<=$n_elements-1;i++ ))
 	do
-	    if [ "${array3[$i]}" == "2" ]; 
+	    if [ "${array3[$i]}" == "2" ];
 	    then
-		array4+=("${array2[$i]}")
+		syn=0
+		seq1="${array4[$i]}"
+
+	    elif [ "${array3[$i]}" == "12" ]
+	    then
+		if [ "$syn" -eq 0 ];
+		then
+		    ack1="${array5[$i]}"
+		    
+		    if [ "$((ack1))" -eq "$((seq1+1))" ];
+		    then
+			synack=0
+			seq2="${array4[$i]}"
+		    fi
+		fi
+
+	    elif [ "${array3[$i]}" == "1" ];
+	    then
+		if [ "$synack" -eq 0 ];
+		then
+		    ack2="${array5[$i]}"
+		    
+		    if [ "$((ack2))" -eq "$((seq2+1))" ];
+		    then
+			handshake=True
+		    fi
+		fi
 	    fi
-	    
+
+	    if [ "$handshake" == "True" ];
+	    then
+		openned=$((openned+1))
+		array6+=("${array2[$i]}")
+
+		if [ "$i" -gt 0 ];
+		then
+		    if [ "${array6[$i]}" == "${array6[$i-1]}" ];
+		    then
+			while [ "${array6[$i]}" == "${array6[$i-1]}" ];
+			do
+			    unset array6[$i]
+			    ((j+=1))
+			    array6+=("${array2[$j]}")
+		        done
+		    fi
+		fi
+			  
+		syn=1
+		synack=1
+		handshake=False
+	    fi
+		    
 	    if [ "${array1[$i]}" == "$((begin+5))" ];
 	    then
 		break
 	    fi
 	done
 
-	n_elements="${#array4[@]}"
-
-	for (( i=0;i<=$n_elements;i++ )) #if there are duplicate source ports, delete them
-        do
-	    for (( j=$i+1;j<=$n_elements;j++ ))
-	    do
-		if [ "${array4[$i]}" == "${array4[$j]}" ];
-		then
-		    unset array4[$j]
-		fi
-	    done
-	done
-
-	n_elements="${#array4[@]}"
-
-	
-    else
-	 echo -e "\n\n${greem} (+) No malicious patterns found.${default}\n"
+	echo "${#array6[@]}"
     fi		     
 
 }
@@ -526,4 +578,5 @@ then
 fi
 
 main_menu
+
 
