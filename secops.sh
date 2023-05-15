@@ -279,7 +279,6 @@ function slowloris() {
     syn=1
     synack=1
     handshake=False
-    j=0
     
     if [ "$input3" -gt 1 ];
     then
@@ -328,8 +327,7 @@ function slowloris() {
 			while [ "${array6[$i]}" == "${array6[$i-1]}" ];
 			do
 			    unset array6[$i]
-			    ((j+=1))
-			    array6+=("${array2[$j]}")
+			    array6+=("${array2[((i+=1))]}")
 		        done
 		    fi
 		fi
