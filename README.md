@@ -2,7 +2,7 @@
 
 CONTINUA EN DESARROLLO .....
 
-![image](https://user-images.githubusercontent.com/114626248/234671924-25a0bd03-3506-4344-a37b-ed31b58981a8.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/ef2724de-86c8-4f4c-8a63-362a4a18ea20)
 
 # ¿Qué es?
 
