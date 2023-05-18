@@ -29,12 +29,10 @@ name_suboption=""
 #main menu
 declare -A options
 options=(
-    ["pcap_analyze"]=1
-    ["network_scan"]=2
-    ["packet_manipulation"]=3
-    ["layer2_attacks"]=4
-    ["detect_malicious_ip"]=5
-    ["exit"]=6
+    ["Attack_detection"]=1
+    ["Reconnaissance_detection"]=2
+    ["Threat_intelligence"]=3
+    ["exit"]=4
 )
 
 #menu pcap analyzer
@@ -80,7 +78,7 @@ function prompt_option() {
 }
 
 function prompt_suboption() {
-    echo -e "${green}┌─[${red}${HOSTNAME}${green}]──[${red}~${green}]─[${yellow}/MainMenu/PcapAnalyzer/${name_suboption}${green}]:"
+    echo -e "${green}┌─[${red}${HOSTNAME}${green}]──[${red}~${green}]─[${yellow}/MainMenu/${name_option}/${name_suboption}${green}]:"
 }
 
 #errors
@@ -101,8 +99,9 @@ function tool_check() {
 
     required_tools=(
         'tshark'
-        'scapy'
-        'yersinia'
+        'wget'
+        'curl'
+	'jq'
     )
 
     tool_check=0
@@ -132,7 +131,7 @@ function tool_check() {
         do
             echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-            if [ $(`grep -i "debian" /etc/*-release`) ];
+            if [ $(grep -i "debian" /etc/*-release) ];
             then
                 sudo apt-get install -fy $tool &>/dev/null
 
@@ -519,7 +518,7 @@ function main_menu_option_1() {
     flag=0
     clear
     banner
-    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Denial of Service\n\n [2] Nmap Scan \n\n [3] Vlan Hopping\n\n [4] HSRP Attack\n\n [5] TCP Port Scan\n\n [6] ARP Spoofing\n\n [7] DHCP Spoofing\n\n [8] Back \n\n ${default}"
+    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling\n\n [5] LAN Attacks\n\n [6] Back \n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -558,7 +557,7 @@ function main_menu_option_1() {
 }
 
 #exit
-function main_menu_option_6() {
+function main_menu_option_4() {
 
     echo -e "\nBYE!.\n"
     sleep 1
@@ -574,7 +573,7 @@ function main_menu() {
     clear
     banner
     tool_check
-    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] PCAP Analyze\n\n [2] Network Scan\n\n [3] Packet Manipulation\n\n [4] Layer 2 Attacks\n\n [5] Detect Malicious Ip\n\n [6] Exit\n\n ${default}"
+    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Attack detection\n\n [2] Reconnaissance detection\n\n [3] Threat Intelligence\n\n [4] Exit\n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -582,7 +581,7 @@ function main_menu() {
         echo -e "\n${green}┌─[${red}${HOSTNAME}${green}]──[${red}~${green}]─[${yellow}/MainMenu/${green}]:"
         read -p "└─────► $(tput setaf 7)" option
 
-        if [[ "$option" -gt 6 || "$option" -lt 1 ]];
+        if [[ "$option" -gt 4 || "$option" -lt 1 ]];
         then
             flag2=1
         else
@@ -620,5 +619,6 @@ then
 fi
 
 main_menu
+
 
 
