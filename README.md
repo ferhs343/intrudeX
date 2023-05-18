@@ -6,67 +6,78 @@ CONTINUA EN DESARROLLO .....
 
 # ¿Qué es?
 
-Sec-Ops, la herramienta ideal para detectar ataques básicos en un archivo PCAP, acelerando el proceso de análisis y llegar a una conclusión en segundos, así mismo, Sec-Ops fue desarrollado para automatizar procesos de ataques a redes LAN, Sec-Ops fue creado con el fin de mezclar Red Team y Blue Team, siendo diseñado para tener una funcionalidad amigable para los usuarios.
+Sec-Ops, una herramienta diseñada para especialistas en seguridad defensiva, ofreciendo múltiples funcionalidades como la detección de ataques fundamentales, detección de reconocimiento a redes, así como la funcionalidad de inteligencia de amenazas para investigar IP/Dominios sospechosos, automatizando en gran parte el proceso de análisis de un incidente de seguridad.
 
 # Un vistazo a la herramienta
 
-Al ejecutar Sec-Ops, la herramienta primero que nada detectará si en tu sistema se encuentran instaladas las herramientas necesarias para que pueda funcionar, siendo estas Tshark, Scapy y Yersinia.
+Al ejecutar Sec-Ops, la herramienta primero que nada detectará si en tu sistema se encuentran instaladas las herramientas necesarias para que pueda funcionar, siendo estas Tshark, wget, curl y jq.
 
 Al no contar con alguna(s) herramientas instaladas, Sec-Ops en automático comenzara la instalación de las mismas.
 
-![image](https://user-images.githubusercontent.com/114626248/234672194-72a9a3c3-0f0f-4959-b9dd-e3817fc0158c.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/68e500fb-c684-4b73-8143-d12897cd3930)
 
-En este ejemplo, se muestra que el usuario no tiene instaladas las herramientas Tshark y Yersinia, por lo que Sec-Ops detectará esto y comenzara la instalación de las mismas.
+En este ejemplo, se muestra que el usuario no tiene instaladas las herramientas curl y jq, por lo que Sec-Ops detectará esto y comenzara la instalación de las mismas.
 
-![image](https://user-images.githubusercontent.com/114626248/234672337-8e719d9e-b4da-4b58-897d-0dcec274cc37.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/d6399046-5400-4711-8da1-33a7842963ab)
 
 Una vez completada la instalación, Sec-Ops se volverá a ejecutar, detectando que las herramientas instaladas anteriormente efectivamente se encuentran en tu sistema operativo, por lo que Sec-Ops ya puede ejecutarse correctamente.
 
-![image](https://user-images.githubusercontent.com/114626248/234672472-872603fd-fdc6-411a-887b-b9ab644cd1b6.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/904a053c-aa8b-4d82-b4fd-371542dcc459)
 
 ## Navegación por la herramienta
 
 Como ya a sido mencionado anteriormente, Sec-Ops fué desarrollado para tener un uso amigable con el usuario. Observando la herramienta, se cuenta con un menú con diferentes opciones, tendrás que seleccionar una opción válida de acuerdo a la acción que deseas ejecutar.
 
-![image](https://user-images.githubusercontent.com/114626248/234672657-76deb035-88b7-4b6d-8ceb-0713d85f1eb9.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/db12746f-6852-49fb-ad85-b802700aebf8)
 
-En el siguiente ejemplo, se muestra como se a seleccionado la opcion 1, correspondiente a la funcionalidad de "PCAP analyze", para esta opción, están disponibles mas subopciones, por lo que se deberá seleccionar una. 
+En el siguiente ejemplo, se muestra como se a seleccionado la opcion 1, correspondiente a la funcionalidad de "Attack detection", para esta opción, están disponibles mas subopciones, por lo que se deberá seleccionar una. 
 
-![image](https://user-images.githubusercontent.com/114626248/234672931-d3d7c7c9-a323-44ac-82b6-29d32e15554f.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/c488b688-e003-46d0-bfbf-cf2e89d6b92a)
 
-![image](https://user-images.githubusercontent.com/114626248/234673161-b6e2637f-9e6e-4dc0-9692-54bd45aeb1f2.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/62b52094-031c-4cc2-8ad1-9dbf689e2fdf)
+
 
 Así mismo, en el prompt diseñado, se observa que cada vez que se selecciona una opción, muestra una navegación por la herramienta, siendo útil para un usuario nuevo, sirviendo como una pequeña guía.
 
-![image](https://user-images.githubusercontent.com/114626248/234673269-ed24387f-22a6-43e9-8ca8-3c261bfd392c.png)
+![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/d95c2537-c7ac-45fa-848a-2067ff07df3e)
+
 
 # Uso de la herramienta
 
-Ahora, pasaremos a describir las funciones de la herramienta.
+Ahora, pasaremos a describir el uso de las funciones de la herramienta.
 
-## Opción PCAP Analyzer
+## Opción Attack detection
 
-La opción "PCAP Analyzer" fue implementada con el principal proposito de detectar ataques básicos de un PCAP, filtrando los protocolos relevantes en cada ataque, y examinando cada paquete, buscando patrones que identifican si un ataque fue realizado.
+La opción "Attack detection" está pensada con el principal proposito de detectar ataques básicos de un PCAP, mediante la detección de patrones maliciosos, examinando diferentes paquetes de una transmisión.
 
-Actualmente, Sec-Ops tiene disponibles [n] ataques para detectar, los cuales se listan en el menu de la opcion "PCAP Analyzer":
+Actualmente, Sec-Ops tiene disponibles [n] ataques para detectar, las cuales se listan a continuación:
 
-![image](https://user-images.githubusercontent.com/114626248/234681998-dc35f4c9-c9cd-4d2c-9593-9f85db2ced0c.png)
+* Denegación de servicio
+  * TCP SYN Flood
+  * TCP RST Flood
+  * UDP Flood
+  * ICMP Flood
+  * Técnica Slowloris
+  * Amplificación DNS
+* Inyección SQL
+* Fuerza bruta
+  * SSH
+  * FTP
+  * RDP
+  * MYSQL
+* Tunelización DNS
+* Inyecciones de código
+* Ataques a redes locales
+  * Vlan hopping
+  * ARP spoofing
+  * DHCP spoofing
+  * Ataque a STP
+  * Ataque a HSRP
+  * Envenenamiento
 
-Supongamos que un analista en seguridad informática quiere detectar rapidamente si un ataque "ARP Spoofing" fue producido, por lo que deberá seleccionar la opción "6" del menú mencionado anteriormente.
 
-![image](https://user-images.githubusercontent.com/114626248/234682563-419b0459-4b60-4198-b9d0-8f01aa8db1c7.png)
 
-Sec-Ops le pedirá al analista en seguridad informática ingresar un archivo PCAP a analizar, por lo que DEBERÁ ingresar la ruta donde se encuentra dicho PCAP.
 
-![image](https://user-images.githubusercontent.com/114626248/234682950-05946070-4907-4a6c-a389-fd21df8f73e6.png)
-
-Sec-Ops validará si la ruta especificada existe, si esta es correcta, Sec-Ops iniciará el proceso de extracción de datos relevantes del archivo PCAP
-
-![image](https://user-images.githubusercontent.com/114626248/234683244-f32a89a6-45f2-4e66-98a5-e68c6252a6dc.png)
-
-En el caso de que se especifique una ruta incorrecta, Sec-Ops detectará que hay un error, por lo que volverá a solicitar la especificación de la ruta del archivo PCAP a analizar.
-
-![image](https://user-images.githubusercontent.com/114626248/234683610-52ffabad-42a7-4e18-81aa-28316870d452.png)
 
 
 
