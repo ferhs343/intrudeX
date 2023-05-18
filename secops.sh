@@ -331,13 +331,13 @@ function slowloris() {
 
         n_elements="${#array6[@]}"
 
-	if [ "$openned" -gt 1 ];
+	if [ "$openned" -gt 15 ];
 	then
+	    alert=$(echo -e "${red}[!]${default}")
 	    test=$(($n_elements / 2 | bc))
 	    input8=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]} && tcp.flags.push == 1" -T fields -e "tcp.segment_data" 2> /dev/null)
 	    array7=($input8)
 	    n_elements="${#array7[@]}"
-	    echo $n_elements
 	    
 	    input9=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]}" 2> /dev/null | awk '{print $2}' | awk -F'.' '{print $1}')
 	    array8=($input9)
@@ -347,7 +347,7 @@ function slowloris() {
 
 	    for (( i=0;i<=$n_elements;i++ ))
 	    do
-		if echo "${array7[$i]}" | grep '454754202f3f' 1> /dev/null;
+		if echo "${array7[$i]}" | grep '474554202f3f' 1> /dev/null;
 		then
 		    method="GET"
 		    
@@ -371,9 +371,6 @@ function slowloris() {
 		if [ "$time" -gt 10 ];
 		then
 		    techniques_verif=True
-
-		else
-		    techniques_verif=False
 		fi
 	    fi
 	fi
@@ -383,7 +380,15 @@ function slowloris() {
 	    syn_flood
 	    
 	else
-	    echo -e "${green}\n $(frame -)\n  Host impacted: \n $(frame -) ${default}"
+	    echo -e "${green}\n $(frame -)\n ${yellow} [+] Impact: ${green}${host_impacted}:${port_impacted} ${green}\n $(frame -) ${default}"
+	    echo -e "\n${red}  ALERT! Slowloris technique detected!${default}"
+	    echo -e "\n${yellow}  [+] Openned connections in 5 seconds: ${green}${openned} ${alert}${default}"
+	    echo -e "\n${yellow}  [+] Source port analyzed: ${green}${array6[$test]}${default}"
+	    echo -e "\n${yellow}\t[+] Connection time duration: ${green}${time}s${default}"
+	    echo -e "\n${yellow}\t[+] HTTP Method: ${green}${method}${default}"
+	    echo -e "\n${yellow}\t[+] User-agent: ${green}${user_agent} ${alert}${default}"
+	    echo -e "\n${yellow}\t[+] TCP Segment data: ${green}${data} ${alert}${default}"
+	    echo -e "\n${green} $(frame -)${default}"
 	fi
 	
     else
@@ -615,4 +620,5 @@ then
 fi
 
 main_menu
+
 
