@@ -36,16 +36,40 @@ options=(
 )
 
 #menu pcap analyzer
-declare -A options_pcap_analyzer
-options_pcap_analyzer=(
+declare -A options_attack_detection
+options_attack_detection=(
     ["Denial_of_service"]=1
-    ["nmap_scan"]=2
-    ["vlan_hopping"]=3
-    ["hsrp_attack"]=4
-    ["tcp_port_scan"]=5
-    ["ARP_spoofing"]=6
-    ["DHCP_spoofing"]=7
-    ["Back"]=8
+    ["Web_attacks"]=2
+    ["Brute_force"]=3
+    ["DNS_tunneling"]=4
+    ["LAN_attacks"]=5
+    ["Back"]=6
+)
+
+#filters in thsark
+filters=(	
+    'tcp.flags.syn == 1'
+    'tcp.flags.syn == 0'
+    'tcp.flags.ack == 1'
+    'tcp.flags.ack == 0'
+    'tcp.dstport == 80'
+    'tcp.dstport == 443'
+    'http.response.code == 400'
+    'http.response.code == 408'
+    'tcp.flags == 0x018'
+    'tcp.flags == 0x002'
+    'tcp.flags == 0x010'
+)
+
+groups=(	
+    'ip.dst'
+    'tcp.srcport'
+    'tcp.dstport'
+    'tcp.flags'
+    'http.response.code'
+    'tcp.segment_data'
+    'tcp.seq'
+    'tcp.ack'
 )
 
 function frame() {
@@ -163,68 +187,35 @@ function tool_check() {
 }
 
 #pcap analyzer options
-function pcap_analyzer_option_1() {
+function attack_detection_option_1() {
     load_pcap
 }
 
-function pcap_analyzer_option_2() {
+function attack_detection_option_2() {
     load_pcap
 }
 
-function pcap_analyzer_option_3() {
+function attack_detection_option_3() {
     load_pcap
 }
 
-function pcap_analyzer_option_4() {
+function attack_detection_option_4() {
     load_pcap
 }
 
-function pcap_analyzer_option_5() {
+function attack_detection_option_5() {
     load_pcap
 }
 
-function pcap_analyzer_option_6() {
-    load_pcap
-}
-
-function pcap_analyzer_option_7() {
-    load_pcap
-}
-
-function pcap_analyzer_option_8 () {
+function attack_detection_option_6() {
     main_menu
 }
 
 # -------------------------------------------------------------------- Denial Of Service --------------------------------------------------------------------
 function slowloris() {
 
-   filters=(	
-	'tcp.flags.syn == 1'
-	'tcp.flags.syn == 0'
-	'tcp.flags.ack == 1'
-	'tcp.flags.ack == 0'
-	'tcp.dstport == 80'
-	'tcp.dstport == 443'
-	'http.response.code == 400'
-	'http.response.code == 408'
-	'tcp.flags == 0x018'
-	'tcp.flags == 0x002'
-	'tcp.flags == 0x010'
-    )
-
-    groups=(	
-	'ip.dst'
-	'tcp.srcport'
-	'tcp.dstport'
-	'tcp.flags'
-	'http.response.code'
-	'tcp.segment_data'
-	'tcp.seq'
-	'tcp.ack'
-    )
-
-    points=0
-
+    echo -e "\n${green} [+] Slowloris Test .....${default}"
+  
     #extract host impacted
     host_impacted=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.dst" 2> /dev/null | head -n 1)
     
@@ -277,7 +268,8 @@ function slowloris() {
     syn=1
     synack=1
     handshake=False
-    
+
+    #extract the number of conections established, examining 3 way handshake
     if [ "$input3" -gt 1 ];
     then
 	for (( i=0;i<=$n_elements-1;i++ ))
@@ -330,6 +322,7 @@ function slowloris() {
 
         n_elements="${#array6[@]}"
 
+	#extract anomalies of TCP segments of one source port selected
 	if [ "$openned" -gt 15 ];
 	then
 	    alert=$(echo -e "${red}[!]${default}")
@@ -337,7 +330,7 @@ function slowloris() {
 	    input8=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]} && tcp.flags.push == 1" -T fields -e "tcp.segment_data" 2> /dev/null)
 	    array7=($input8)
 	    n_elements="${#array7[@]}"
-	    
+
 	    input9=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]}" 2> /dev/null | awk '{print $2}' | awk -F'.' '{print $1}')
 	    array8=($input9)
 	    start="${array8[0]}"
@@ -346,20 +339,23 @@ function slowloris() {
 
 	    for (( i=0;i<=$n_elements;i++ ))
 	    do
-		if echo "${array7[$i]}" | grep '474554202f3f' 1> /dev/null;
+		if echo "${array7[$i]}" | grep "474554202f3f" 1> /dev/null;
 		then
 		    method="GET"
-		    
-		    if echo "${array7[$i]}" | grep '57696e646f7773204e5420352e31' 1> /dev/null;
+
+		    if echo "${array7[$i]}" | grep "57696e646f7773204e5420352e31" 1> /dev/null;
 		    then
 			user_agent="Windows NT 5.1"
+
+		    else
+			user_agent=$(echo "${array7[$i]}" | xxd -r -p | grep 'User-Agent:' | tr 'User-Agent: ' '')
 		    fi
 	        fi
 
-		if echo "${array7[$i]}" | grep '582d613a2062' 1> /dev/null;
+		if echo "${array7[$i]}" | grep "582d613a20620d0a" 1> /dev/null;
 		then
 		    data="X-a: b"
-		fi
+	        fi
 	    done
 	fi
 
@@ -384,6 +380,7 @@ function slowloris() {
 	    echo -e "\n${yellow}  [+] Openned connections in 5 seconds: ${green}${openned} ${alert}${default}"
 	    echo -e "\n${yellow}  [+] Source port analyzed: ${green}${array6[$test]}${default}"
 	    echo -e "\n${yellow}\t[+] Connection time duration: ${green}${time}s${default}"
+	    echo -e "\n${yellow}\t[+] TCP Flag: ${green}PUSH${default}"
 	    echo -e "\n${yellow}\t[+] HTTP Method: ${green}${method}${default}"
 	    echo -e "\n${yellow}\t[+] User-agent: ${green}${user_agent} ${alert}${default}"
 	    echo -e "\n${yellow}\t[+] TCP Segment data: ${green}${data} ${alert}${default}"
@@ -397,12 +394,10 @@ function slowloris() {
 }
 
 function syn_flood() {
-    echo ""
+    echo "pasaste a tcp syn flood"
 }
 
 function detect_Denial_of_service() {
-    
-    echo -e "\n${green} [+] ${count}Getting ready......${default}"
 
     #    hping3                     scapy                    slowloris           
     # un origen                   un origen                  un origen         
@@ -429,12 +424,11 @@ function detect_Denial_of_service() {
     elif [[ "$((tcp))" -gt "$((icmp))" && "$((tcp))" -gt "$((udp))" ]];
     then
 
-	echo -e "\n\n${green} [+] Examining TCP......${default}\n"
-
 	input2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq)
 	array1=($input2)
-
+     
 	n_elements="${#array1[@]}"
+	echo -e "\n\n${green} [+] Examining ${n_elements} ports .....${default}\n"
 
 	if [ "$n_elements" -gt 0 ];
 	then
@@ -450,7 +444,7 @@ function detect_Denial_of_service() {
 	    done
 	    
 	else
-	    echo -e "\n${red} [+] ERROR, there are no packages to analyze!.${default}\n"
+	    echo -e "\n${red} [+] ERROR, there are no TCP packets to analyze!.${default}\n"
 	fi
 
     elif [[ "$((udp))" -gt "$((icmp))" && "$((udp))" -gt "$((tcp))" ]];
@@ -493,7 +487,7 @@ function load_pcap() {
 
                 cp $path $current/$new_directory/capture-$id_file.pcap
 
-                echo -e "\n${green} [+] Correct! File selected ==> ${path} \n"
+                echo -e "\n${green} [+] Getting ready ....."
 		sleep 1
                 detect_${name_suboption}
                 check=1
@@ -526,7 +520,7 @@ function main_menu_option_1() {
         prompt_option
         read -p "└─────► $(tput setaf 7)" suboption
 
-        if [[ "$suboption" -gt 8 || "$option" -lt 1 ]];
+        if [[ "$suboption" -gt 6 || "$option" -lt 1 ]];
         then
             flag2=1
         else
@@ -536,14 +530,14 @@ function main_menu_option_1() {
 
         if [ "$flag2" -eq 0 ];
         then
-            for key in "${!options_pcap_analyzer[@]}";
+            for key in "${!options_attack_detection[@]}";
             do
-                value="${options_pcap_analyzer[$key]}"
+                value="${options_attack_detection[$key]}"
                 name_suboption=$key
 
                 if [ "$suboption" == "$value" ];
                 then
-                    pcap_analyzer_option_${value}
+                    attack_detection_option_${value}
                     flag=1
                 fi
             done
