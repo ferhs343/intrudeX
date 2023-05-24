@@ -47,26 +47,30 @@ options_attack_detection=(
 )
 
 #filters in thsark
-filters=(	
+protocols=(
+    'tcp'
+    'http'
+)
+
+conditions=(
     'tcp.flags.syn == 1'
     'tcp.flags.syn == 0'
     'tcp.flags.ack == 1'
     'tcp.flags.ack == 0'
+    'tcp.flags.push == 1'
     'tcp.dstport == 80'
     'tcp.dstport == 443'
-    'http.response.code == 400'
-    'http.response.code == 408'
     'tcp.flags == 0x018'
     'tcp.flags == 0x002'
     'tcp.flags == 0x010'
 )
 
-groups=(	
+groups=(
+    'ip.src'
     'ip.dst'
     'tcp.srcport'
     'tcp.dstport'
     'tcp.flags'
-    'http.response.code'
     'tcp.segment_data'
     'tcp.seq'
     'tcp.ack'
@@ -217,14 +221,14 @@ function slowloris() {
     echo -e "\n${green} [+] Slowloris Test .....${default}"
   
     #extract host impacted
-    host_impacted=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "ip.dst" 2> /dev/null | head -n 1)
+    host_impacted=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${conditions[0]} && ${conditions[3]}" -T fields -e "${groups[1]}" 2> /dev/null | head -n 1)
     
     #extract port impacted
-    port_impacted=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq | grep '80\|443')
+    port_impacted=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${conditions[0]} && ${conditions[3]}" -T fields -e "${groups[3]}" 2> /dev/null | sort | uniq | grep '80\|443')
     array=($port_impacted)
     
     #extract total of TCP packets
-    input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
+    input1=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${protocols[0]}" -T fields -e "${groups[2]}" 2> /dev/null | wc -l)
     value=$((input1))
 
     if [ "$((input1))" -gt 100000 ];
@@ -236,29 +240,29 @@ function slowloris() {
     fi
 
     #extract seconds values 
-    input2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" 2> /dev/null | awk '{print $2}' | head -n $limit | awk -F'.' '{print $1}')
+    input2=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${protocols[0]}" 2> /dev/null | awk '{print $2}' | head -n $limit | awk -F'.' '{print $1}')
     array1=($input2)
 
     begin="${array1[0]}"
     n_elements="${#array1[@]}"
 
     #extract number of source ports
-    input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit | sort | uniq | wc -l)
+    input3=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${conditions[0]} && ${conditions[3]}" -T fields -e "${groups[2]}" 2> /dev/null | head -n $limit | sort | uniq | wc -l)
 
     #extract source ports
-    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.srcport" 2> /dev/null | head -n $limit)
+    input4=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${protocols[0]}" -T fields -e "${groups[2]}" 2> /dev/null | head -n $limit)
     array2=($input4)
 
     #extract flags
-    input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.flags" 2> /dev/null | head -n $limit | tr -d '[0x]')
+    input5=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${protocols[0]}" -T fields -e "${groups[4]}" 2> /dev/null | head -n $limit | tr -d '[0x]')
     array3=($input5)
 
     #extract sequence numbers
-    input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.seq" 2> /dev/null | head -n $limit)
+    input6=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${protocols[0]}" -T fields -e "${groups[6]}" 2> /dev/null | head -n $limit)
     array4=($input6)
 
     #extract Acknowledgment
-    input7=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp" -T fields -e "tcp.ack" 2> /dev/null | head -n $limit)
+    input7=$(tshark -r $new_directory/capture-$id_file.pcap -Y "${protocols[0]}" -T fields -e "${groups[7]}" 2> /dev/null | head -n $limit)
     array5=($input7)
     
     #detect openned conections in 5 seconds
@@ -327,7 +331,7 @@ function slowloris() {
 	then
 	    alert=$(echo -e "${red}[!]${default}")
 	    test=$(($n_elements / 2 | bc))
-	    input8=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]} && tcp.flags.push == 1" -T fields -e "tcp.segment_data" 2> /dev/null)
+	    input8=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]} && ${conditions[4]}" -T fields -e "${groups[5]}" 2> /dev/null)
 	    array7=($input8)
 	    n_elements="${#array7[@]}"
 
@@ -376,7 +380,7 @@ function slowloris() {
 	    
 	else
 	    echo -e "${green}\n $(frame -)\n ${yellow} [+] Impact: ${green}${host_impacted}:${port_impacted} ${green}\n $(frame -) ${default}"
-	    echo -e "\n${red}  ALERT! Slowloris technique detected!${default}"
+	    echo -e "\n${red}  ALERT! Slowloris technique attack detected!${default}"
 	    echo -e "\n${yellow}  [+] Openned connections in 5 seconds: ${green}${openned} ${alert}${default}"
 	    echo -e "\n${yellow}  [+] Source port analyzed: ${green}${array6[$test]}${default}"
 	    echo -e "\n${yellow}\t[+] Connection time duration: ${green}${time}s${default}"
@@ -613,6 +617,5 @@ then
 fi
 
 main_menu
-
 
 
