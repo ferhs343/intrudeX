@@ -25,6 +25,7 @@ id_file=1
 techniques_verif=False
 name_option=""
 name_suboption=""
+alert="[Warning]"
 
 #main menu
 declare -A options
@@ -59,10 +60,6 @@ conditions=(
     'tcp.flags.ack == 0'
     'tcp.flags.push == 1'
     'tcp.dstport == 80'
-    'tcp.dstport == 443'
-    'tcp.flags == 0x018'
-    'tcp.flags == 0x002'
-    'tcp.flags == 0x010'
 )
 
 groups=(
@@ -329,7 +326,6 @@ function slowloris() {
 	#extract anomalies of TCP segments of one source port selected
 	if [ "$openned" -gt 15 ];
 	then
-	    alert=$(echo -e "${red}[!]${default}")
 	    test=$(($n_elements / 2 | bc))
 	    input8=$(tshark -r $new_directory/capture-$id_file.pcap -Y "tcp.port == ${array6[$test]} && ${conditions[4]}" -T fields -e "${groups[5]}" 2> /dev/null)
 	    array7=($input8)
@@ -340,36 +336,38 @@ function slowloris() {
 	    start="${array8[0]}"
 	    end="${array8[-1]}"
 	    time=$((end-start))
-
+	    count_data=0
+	    
 	    for (( i=0;i<=$n_elements;i++ ))
 	    do
 		if echo "${array7[$i]}" | grep "474554202f3f" 1> /dev/null;
 		then
-		    method="GET"
+		    method=$(echo -n "${array7[$i]}" | xxd -r -p | head -n 1)
 
 		    if echo "${array7[$i]}" | grep "57696e646f7773204e5420352e31" 1> /dev/null;
 		    then
 			user_agent="Windows NT 5.1"
-
-		    else
-			user_agent=$(echo "${array7[$i]}" | xxd -r -p | grep 'User-Agent:' | tr 'User-Agent: ' '')
 		    fi
 	        fi
 
 		if echo "${array7[$i]}" | grep "582d613a20620d0a" 1> /dev/null;
 		then
 		    data="X-a: b"
+		    count_data=$((count_data+1))
 	        fi
 	    done
 	fi
 
-	if [ "$n_elements" -ge 5 ];
+	if [ "$n_elements" -ge 1 ];
 	then
-	    if [ "$method" == "GET" ];
+	    if echo "$method" | grep "GET /?" 1> /dev/null;
 	    then
-		if [ "$time" -gt 10 ];
+		if [ "$count_data" -gt 1 ];
 		then
-		    techniques_verif=True
+		    if [ "$time" -gt 10 ];
+		    then
+			techniques_verif=True
+      		    fi
 		fi
 	    fi
 	fi
@@ -381,13 +379,12 @@ function slowloris() {
 	else
 	    echo -e "${green}\n $(frame -)\n ${yellow} [+] Impact: ${green}${host_impacted}:${port_impacted} ${green}\n $(frame -) ${default}"
 	    echo -e "\n${red}  ALERT! Slowloris technique attack detected!${default}"
-	    echo -e "\n${yellow}  [+] Openned connections in 5 seconds: ${green}${openned} ${alert}${default}"
+	    echo -e "\n${yellow}  [+] Openned connections in 5 seconds: ${green}${openned}${default}"
 	    echo -e "\n${yellow}  [+] Source port analyzed: ${green}${array6[$test]}${default}"
 	    echo -e "\n${yellow}\t[+] Connection time duration: ${green}${time}s${default}"
-	    echo -e "\n${yellow}\t[+] TCP Flag: ${green}PUSH${default}"
-	    echo -e "\n${yellow}\t[+] HTTP Method: ${green}${method}${default}"
-	    echo -e "\n${yellow}\t[+] User-agent: ${green}${user_agent} ${alert}${default}"
-	    echo -e "\n${yellow}\t[+] TCP Segment data: ${green}${data} ${alert}${default}"
+	    echo -e "\n${yellow}\t[+] Request: ${green}${method} ${default}"
+	    echo -e "\n${yellow}\t[+] User-agent: ${green}${user_agent}${default}"
+	    echo -e "\n${yellow}\t[+] TCP Segment data: ${green}${data}${default}"
 	    echo -e "\n${green} $(frame -)${default}"
 	fi
 	
@@ -617,5 +614,3 @@ then
 fi
 
 main_menu
-
-
