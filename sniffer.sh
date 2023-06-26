@@ -1,6 +1,8 @@
 #!/bin/bash
 
 #importar main
+#comando trap
+#forzar cierre del bucle infinito al salir
 
 general_capture='.general.pcap'
 predefined_ports=('21' '22' '23' '25' '80' '443' '445' '1433')
