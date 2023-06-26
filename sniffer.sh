@@ -2,13 +2,27 @@
 
 #importar main
 
-file=".capture.pcap"
-ip=$(ifconfig enp4s0 | grep 'inet ' | awk '{print $2}')
-flag=0
-ports=()
+general_capture='.general.pcap'
+ports=('443' '80')
+captures=()
 
-#obtener 
-#primero hacer el analisis y si la regla es positiva muestra un log
+local_ip=$(ifconfig eth0 | grep 'inet ' | awk '{print $2}')
+flag=0
+
+function port_scanner() {
+    
+    for (( i=0;i<=49151;i++ ))
+    do
+        nc -zvn 127.0.0.1 $i 2> /dev/null
+	
+	if [ "$?" -eq 0 ];
+	then
+	    ports+=("$i")
+	fi
+    done
+
+    echo "puertos listos"
+}
 
 function denial_of_service() {
 
@@ -16,21 +30,17 @@ function denial_of_service() {
     
     sleep 60
 
-    value2=$(tshark -r "${file}" -Y "ip.addr == ${ip} && tcp.port == ${port}" 2> /dev/null | awk '{print $1}' | tail -n 1)
+    value2=$(tshark -r "${general_capture}" -Y "ip.addr == ${local_ip} && tcp.port == ${port}" 2> /dev/null | awk '{print $1}' | tail -n 1)
     final_value=$value2
 
     echo "${final_value}"
 
-    tshark -w "dos.pcap" -r "${file}" -Y "ip.addr == ${ip} && tcp.port == ${port} && frame.number >= ${initial_value} && frame.number <= ${final_value}" 2> /dev/null
+    tshark -w "dos.pcap" -r "${file}" -Y "ip.addr == ${local_ip} && tcp.port == ${port} && frame.number >= ${initial_value} && frame.number <= ${final_value}" 2> /dev/null
     flag=1
     echo "la bandera ya vale 1"
     #investigar como finalizar una funcion en segundo plano
 }
 
-function ftp() {
-
-echo ""
-}
 
 #se ejecutara tshark en segundo plano
 #al entrar a cualquier opcion del menu de ataques, se deberan mostrar ciertos "logs" y el input para cargar ciertos pcaps a analizar, si asi se desea
@@ -42,17 +52,35 @@ echo ""
 #despues ir analizando los paquetes
 #obtener numero de paquete, para empezar a analizar desde ahi
 
-function tsharks() {
-     tshark -w "${file}" -i enp4s0 2> /dev/null &
+function sniffer() {
+
+    port_scanner
+    tshark -w "${general_capture}" -i eth0 2> /dev/null &
+
+    for (( i=0;i<=$n_elements;i++ ));
+    do
+	captures+=(".${ports[$i]}.pcap")
+	
+        if [ "$i" -eq "$n_elements" ];
+	then
+	    while true;
+	    do
+		for (( j=0;j<=$n_elements;j++ ));
+		do
+		    tshark -w "${captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${ports[$j]}" 2> /dev/null
+		done
+	    done
+	fi
+    done
 }
 
-function sniffer() {
+function detector() {
 
     syn=0
     array=()
     n_elements="${#ports[@]}"
 
-    tsharks
+    sniffer &
     
     while true;
     do
@@ -62,17 +90,18 @@ function sniffer() {
 	    then	
 		if [ "${ports[$i]}" == '443' ];
 		then
-		    input1=$(tshark -r "${file}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && ip.addr == ${ip} && tcp.port == ${ports[$i]}" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
-		    port="${ports[$i]}"
+		    echo ""
+		    #input1=$(tshark -r "${general_capture}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0 && ip.addr == ${local_ip} && tcp.port == ${ports[$i]}" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
+		   # port="${ports[$i]}"
 
-		    sleep 2
+		   # sleep 2
 		
-		    if [ "$((input1))" -gt 1 ];
-		    then
-			value=$(tshark -r "${file}" -Y "ip.addr == ${ip} && tcp.port == ${port}" 2> /dev/null | awk '{print $1}' | tail -n 1)
-			initial_value=$value
-			denial_of_service
-		    fi
+		   # if [ "$((input1))" -gt 1 ];
+		    #then
+		#	value=$(tshark -r "${general_capture}" -Y "ip.addr == ${local_ip} && tcp.port == ${port}" 2> /dev/null | awk '{print $1}' | tail -n 1)
+		#	initial_value=$value
+		#	denial_of_service
+		 #   fi
 		fi
 	    fi
 
@@ -81,7 +110,7 @@ function sniffer() {
 		echo "eliminando"
 		truncate --size 0 $file
 		echo "listo"
-	 	tsharks
+	 	sniffer
 		flag=0
 	    fi
 	    
@@ -93,20 +122,6 @@ function sniffer() {
 
 echo "[+] Sniffing..."
 
-for (( i=0;i<=1023;i++ ))
-do
-    nc -zvn 127.0.0.1 $i 2> /dev/null
-    if [ "$?" -eq 0 ];
-    then
-	ports+=("$i")
-    fi
-done
-
-for i in "${ports[@]}"
-do
-    echo $i
-done
-
-sniffer
+detector
 
 
