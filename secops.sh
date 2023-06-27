@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #
 # SEC-OPS
@@ -10,8 +9,6 @@
 # Luis Herrera, Abril 2023
 
 source attacks/Denial_of_service.sh
-
-clear
 
 #colors
 default="\033[0m\e[0m"
@@ -351,8 +348,10 @@ function main_menu() {
 #main program
 if [ $(grep -i "debian" /etc/*-release) ];
 then
+    clear
     main_menu
 else
     error_distribution
     main_menu_option_4
 fi
+
