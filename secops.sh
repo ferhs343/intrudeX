@@ -3,9 +3,9 @@
 # SEC-OPS
 # --------
 # Herramienta con múltiples utilidades para equipos de respuesta a incidentes.
-#    - Detección de ataques más relevantes, desde un archivo pcap
-#    - Detección de ataques de reconocimiento a la red
-#    - Utilidades de Threat Intellingece
+#    - Detección de ataques más comunes a nivel de capa de aplicación, así como a nivel de capa 2
+#    - Detección de reconocimiento a la infraestructura
+#    - Utilidades para la ejecución de Threat Intellingece
 # Luis Herrera, Abril 2023
 
 source attacks/Denial_of_service.sh
@@ -22,15 +22,21 @@ purple="\e[1;95m"
 
 #global variables
 current=$PWD
-new_directory="PCAPS"
+directory="PCAPS"
 flag=0
 flag2=0
 instalation=0
 id_file=1
-techniques_verif=False
 name_option=""
 name_suboption=""
-alert="[Warning]"
+
+subdirectories=(
+    'External_Pcaps'
+    'Denial_of_Service'
+    'Port-Scans'
+    'Layer_2_Attacks'
+)
+n_elements="${#subdirectories[@]}"
 
 #main menu
 declare -A options
@@ -52,34 +58,7 @@ options_attack_detection=(
     ["Back"]=6
 )
 
-#filters in thsark
-protocols=(
-    'tcp'
-    'http'
-)
-
-conditions=(
-    'tcp.flags.syn == 1'
-    'tcp.flags.syn == 0'
-    'tcp.flags.ack == 1'
-    'tcp.flags.ack == 0'
-    'tcp.flags.push == 1'
-    'tcp.dstport == 80'
-)
-
-groups=(
-    'ip.src'
-    'ip.dst'
-    'tcp.srcport'
-    'tcp.dstport'
-    'tcp.flags'
-    'tcp.segment_data'
-    'tcp.seq'
-    'tcp.ack'
-)
-
 function frame() {
-    
     for (( i=0;i<=70;i++ ))
     do
 	echo -n $1
@@ -93,7 +72,7 @@ function banner() {
     echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
     echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
     echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/  \t\t ${cyan}By: Luis Herrera :)${green}"
-    echo -e "                                                     |____|               \t\t ${cyan}V.1.0"
+    echo -e "                                                     |____|               \t\t ${cyan}V.1.0.0"
     echo -e "${red}"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
     echo -e " | Speed up the process of detecting basic attacks from a pcap file and streamline                             |"
@@ -124,6 +103,11 @@ function error_instalation() {
     echo -e "${red}\n [+] ERROR, an unexpected error occurred during installation!!${default}"
 }
 
+function error_distribution() {
+    echo -e "${red}\n [+] ERROR, your linux distribution is not compatible with this tool, this tool works on Debian-based distributions!${default}"
+    sleep 10
+}
+
 #checking required tools
 function tool_check() {
 
@@ -132,6 +116,7 @@ function tool_check() {
         'wget'
         'curl'
 	'jq'
+	'netcat'
     )
 
     tool_check=0
@@ -147,7 +132,6 @@ function tool_check() {
             echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) ${green}[OK]${default}"
             sleep 0.2
         else
-	    
             echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [ERROR]${default}"
             tool_check=1
             no_tool+=("$i")
@@ -161,25 +145,13 @@ function tool_check() {
         do
             echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-            if [ $(grep -i "debian" /etc/*-release) ];
-            then
-                sudo apt-get install -fy $tool &>/dev/null
-
-            elif [ $(grep -i "arch" /etc/*-release) ];
-            then
-                sudo pacman -Syu $tool >/dev/null 2>&1
-
-            elif [ $(grep -i "cent0S" /etc/*-release) ];
-            then
-                sudo yum -y install $tool >/dev/null 2>&1
-            fi
+            sudo apt-get install -fy $tool &>/dev/null
 
             if [ "$?" -eq 0 ];
             then
                 echo -e "${green}\n [+] Installation complete.${default}"
                 sleep 1
-            else
-		
+            else	
                 error_instalation
                 sleep 2
                 main_menu_option_6
@@ -222,7 +194,7 @@ function load_pcap() {
 
     clear
     banner
-    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Back \n${default}"
+    echo -e "\n\n ${yellow}[MENU] \n\n${green} [1] Back \n${default}"
     check=0
 
     while [ "$check" -eq 0 ];
@@ -235,15 +207,14 @@ function load_pcap() {
         then
             main_menu_option_1
             check=1
-        else
-	    
+        else  
             echo -e "\n${green} [+] Finding ${path} .....${default}\n"
             sleep 2
 
             if [ -f "$path" ];
             then
-
-                while [ -f $current/$new_directory/capture-$id_file.pcap ];
+		#pendiente verificar esta parte, para verificar si es un pcap externo o generados por el programa
+                while [ -f $directory/capture-$id_file.pcap ];
                 do
                     id_file=$((id_file+1))
                 done
@@ -254,8 +225,7 @@ function load_pcap() {
 		sleep 1
                 detect_${name_suboption}
                 check=1
-            else
-		
+            else	
                 error_load_pcap
                 check=0
             fi
@@ -275,7 +245,7 @@ function main_menu_option_1() {
     flag=0
     clear
     banner
-    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling\n\n [5] LAN Attacks\n\n [6] Back \n\n ${default}"
+    echo -e "\n\n ${yellow}[MENU] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling\n\n [5] LAN Attacks\n\n [6] Back \n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -286,8 +256,7 @@ function main_menu_option_1() {
         if [[ "$suboption" -gt 6 || "$option" -lt 1 ]];
         then
             flag2=1
-        else
-	    
+        else   
             flag2=0
         fi
 
@@ -326,11 +295,20 @@ function main_menu_option_4() {
 #main menu
 function main_menu() {
 
+    if [[ ! -d $directory ]];
+    then
+	mkdir $directory
+	for (( i=0;i<=$n_elements;i++ ));
+	do
+	    mkdir $directory/"${subdirectories[$i]}"
+	done
+    fi
+    
     flag=0
     clear
     banner
     tool_check
-    echo -e "\n\n ${yellow}[OPTIONS] \n\n${green} [1] Attack detection\n\n [2] Reconnaissance detection\n\n [3] Threat Intelligence\n\n [4] Exit\n\n ${default}"
+    echo -e "\n\n ${yellow}[MENU] \n\n${green} [1] Attack detection\n\n [2] Reconnaissance detection\n\n [3] Threat Intelligence\n\n [4] Exit\n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -341,8 +319,7 @@ function main_menu() {
         if [[ "$option" -gt 4 || "$option" -lt 1 ]];
         then
             flag2=1
-        else
-	    
+        else	    
             flag2=0
         fi
 
@@ -360,7 +337,6 @@ function main_menu() {
                 fi
             done
         else
-
             error_option
             flag=0
             flag2=0
@@ -369,10 +345,10 @@ function main_menu() {
 }
 
 #main program
-
-if [[ ! -d $new_directory ]];
+if [ $(grep -i "debian" /etc/*-release) ];
 then
-    mkdir $new_directory
+    main_menu
+else
+    error_distribution
+    main_menu_option_4
 fi
-
-main_menu
