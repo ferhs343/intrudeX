@@ -131,7 +131,7 @@ function detector() {
 		
 		if [ "${ports[$k]}" == '80' ];
 		then
-		    if [ "$((input1))" -gt 1 ];
+		    if [ "$((input1))" -gt 10 ];
 		    then
 			echo "dos detectado"
 			denial_of_service
