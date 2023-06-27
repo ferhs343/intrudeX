@@ -1,3 +1,4 @@
+
 #!/bin/bash
 #
 # SEC-OPS
@@ -33,7 +34,7 @@ name_suboption=""
 subdirectories=(
     'External_Pcaps'
     'Denial_of_Service'
-    'Port-Scans'
+    'Port_Scans'
     'Layer_2_Attacks'
 )
 n_elements="${#subdirectories[@]}"
@@ -106,6 +107,17 @@ function error_instalation() {
 function error_distribution() {
     echo -e "${red}\n [+] ERROR, your linux distribution is not compatible with this tool, this tool works on Debian-based distributions!${default}"
     sleep 10
+}
+
+function create() {
+    if [[ ! -d $directory ]];
+    then
+	mkdir $directory
+	for (( i=0;i<=$n_elements;i++ ));
+	do
+	    mkdir $directory/"${subdirectories[$i]}"
+	done
+    fi
 }
 
 #checking required tools
@@ -295,15 +307,7 @@ function main_menu_option_4() {
 #main menu
 function main_menu() {
 
-    if [[ ! -d $directory ]];
-    then
-	mkdir $directory
-	for (( i=0;i<=$n_elements;i++ ));
-	do
-	    mkdir $directory/"${subdirectories[$i]}"
-	done
-    fi
-    
+    create
     flag=0
     clear
     banner
