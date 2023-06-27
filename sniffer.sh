@@ -1,9 +1,5 @@
 #!/bin/bash
 
-#importar main
-#comando trap
-#forzar cierre del bucle infinito al salir
-
 general_capture='.general.pcap'
 predefined_ports=('21' '22' '23' '25' '80' '443' '445' '1433')
 ports=()
@@ -11,10 +7,17 @@ captures=()
 interfaces=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
 local_ip=$(ifconfig enp4s0 | grep 'inet ' | awk '{print $2}')
 flag=0
-n_elements=0;
+n_elements=0
 
-pid1=0;
-pid2=0;
+kill_filters=1
+pid_sniffer=0
+pid_filters=0
+
+function killer() {
+    
+    kill_filters=0
+    exit
+}
 
 function port_scanner() {
     
@@ -33,13 +36,15 @@ function port_scanner() {
 	fi
     done
 
+    echo "puertos escaneados"
     n_elements="${#ports[@]}"
 }
 
 function sniffer() {
 
     tshark -w "${general_capture}" -i enp4s0 2> /dev/null &
-    pid1=$!
+    pid_sniffer=$!
+    #sniffing network traffic
 }
 
 function filters() {
@@ -54,7 +59,14 @@ function filters() {
 		for (( j=0;j<=$n_elements;j++ ));
 		do
 		    tshark -w "${captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${ports[$j]} && ip.addr == ${local_ip}" 2> /dev/null
+		    pid_filters=$!
 		done
+
+		if [ "$kill_filters" -eq 0 ];
+		then
+		    kill $pid_filters
+		    break
+		fi
 	    done
 	fi
     done
@@ -66,12 +78,17 @@ function denial_of_service() {
     file="DoS-${id_DoS}.pcap"
     
     init_value=$(tshark -r '.80.pcap' 2> /dev/null | awk '{print $1}' | head -n 1)
-    sleep 30
+    echo $init_value
+
+    sleep 60
+    
     final_value=$(tshark -r '.80.pcap' 2> /dev/null | awk '{print $1}' | tail -n 1)
+    echo $final_value
 
     while [ -f $file ];
     do
 	id_DoS=$((id_DoS+1))
+	file="DoS-${id_DoS}.pcap"
     done
     
     tshark -w "${file}" -r '.80.pcap' -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
@@ -81,14 +98,15 @@ function denial_of_service() {
 
 function clean_files() {
     
-    if [ "$flag" -eq 1 ];
-    then
-	echo "eliminando"
-	truncate --size 0 $general_capture
-	echo "listo"
-	sniffer
-	flag=0
-    fi
+    echo "eliminando"
+    for file in .*.pcap;
+    do
+	truncate --size 0 $file
+    done
+    echo "listo"
+    kill $pid_sniffer
+    sniffer
+    flag=0
 }
 
 function detector() {
@@ -98,13 +116,8 @@ function detector() {
 
     port_scanner
     sniffer
+    trap killer SIGINT
     filters &
-    pid2=$!
-
-    for i in "${captures[@]}"
-    do
-	echo $i
-    done
     
     while true;
     do
@@ -112,17 +125,16 @@ function detector() {
 	do
 	    if [ "$flag" -eq 0 ];
 	    then
+		#initial condition for DoS attack
+		input1=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
+		#initial condition for ARP spoofing
+		
 		if [ "${ports[$k]}" == '80' ];
 		then
-		    #initial condition
-		    port="${ports[$k]}"
-		    input1=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
-		
 		    if [ "$((input1))" -gt 1 ];
 		    then
 			echo "dos detectado"
 			denial_of_service
-			clean_files
 		    fi
 		fi
 
@@ -131,10 +143,10 @@ function detector() {
 		    echo ""
 		fi
 
-		if [ "${ports[$k]}" == '22' ];
+		if [ "$flag" -eq 1 ];
 		then
-		    echo ""
-		fi
+		    clean_files
+		fi 
 	    fi
 	done
     done
@@ -143,9 +155,6 @@ function detector() {
 
 echo "[+] sniffing"
 detector
-
-wait $pid1
-wait $pid2
 
 
 
