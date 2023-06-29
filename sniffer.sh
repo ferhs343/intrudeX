@@ -110,9 +110,6 @@ function clean_files() {
 
 function detector() {
 
-    syn=0
-    array=()
-
     port_scanner
     sniffer
     trap killer SIGINT
