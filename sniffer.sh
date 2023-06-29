@@ -121,13 +121,13 @@ function detector() {
 	do
 	    if [ "$flag" -eq 0 ];
 	    then
-		#initial condition for DoS attack
-		input1=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
-		#initial condition for ARP spoofing
+		#initial conditions for DoS attack
+		confition1=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
+		condition2=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
 		
 		if [ "${ports[$k]}" == '80' ];
 		then
-		    if [ "$((input1))" -gt 10 ];
+		    if [[ "$((condition))" -gt 10 || "$((condition2))" -gt 10 ]];
 		    then
 			echo "dos detectado"
 			denial_of_service
