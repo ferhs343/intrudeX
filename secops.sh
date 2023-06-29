@@ -8,8 +8,6 @@
 #    - Utilidades para la ejecución de Threat Intellingece
 # Luis Herrera, Abril 2023
 
-source attacks/Denial_of_service.sh
-
 #colors
 default="\033[0m\e[0m"
 yellow="\e[1;93m"
