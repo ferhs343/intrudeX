@@ -1,11 +1,11 @@
 #!/bin/bash
 
 general_capture='.general.pcap'
-predefined_ports=('21' '22' '23' '25' '80' '443' '445' '1433')
-ports=()
+predefined_ports=('21' '22' '25' '80' '443' '445' '1433')
+ports=('80')
 captures=()
 interfaces=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
-local_ip=$(ifconfig enp4s0 | grep 'inet ' | awk '{print $2}')
+local_ip=$(ifconfig eth0 | grep 'inet ' | awk '{print $2}')
 flag=0
 n_elements=0
 
@@ -42,7 +42,7 @@ function port_scanner() {
 
 function sniffer() {
 
-    tshark -w "${general_capture}" -i enp4s0 2> /dev/null &
+    tshark -w "${general_capture}" -i eth0 2> /dev/null &
     pid_sniffer=$!
     #sniffing network traffic
 }
@@ -79,9 +79,7 @@ function denial_of_service() {
     
     init_value=$(tshark -r '.80.pcap' 2> /dev/null | awk '{print $1}' | head -n 1)
     echo $init_value
-
     sleep 60
-    
     final_value=$(tshark -r '.80.pcap' 2> /dev/null | awk '{print $1}' | tail -n 1)
     echo $final_value
 
@@ -94,6 +92,7 @@ function denial_of_service() {
     tshark -w "${file}" -r '.80.pcap' -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
     echo "pcap creado"
     flag=1
+    validator
 }
 
 function clean_files() {
@@ -137,18 +136,20 @@ function detector() {
 			denial_of_service
 		    fi
 		fi
-
-		if [ "${ports[$k]}" == '21' ];
+		
+		if [ "$k" -eq "$n_elements" ];
 		then
-		    echo ""
+		    flag=1
 		fi
-
-		if [ "$flag" -eq 1 ];
-		then
-		    clean_files
-		fi 
 	    fi
 	done
+	
+	if [ "$flag" -eq 1 ];
+        then
+	    clean_files
+	    echo "pausa"
+	    sleep 10
+	fi
     done
 
 }
