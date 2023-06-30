@@ -8,6 +8,8 @@
 #    - Utilidades para la ejecución de Threat Intellingece
 # Luis Herrera, Abril 2023
 
+source files.sh
+
 #colors
 default="\033[0m\e[0m"
 yellow="\e[1;93m"
@@ -18,20 +20,12 @@ purple="\e[1;95m"
 
 #global variables
 current=$PWD
-directory="PCAPS"
 flag=0
 flag2=0
 instalation=0
 id_file=1
 name_option=""
 name_suboption=""
-
-subdirectories=(
-    'External_Pcaps'
-    'Denial_of_Service'
-    'Port_Scans'
-    'Layer_2_Attacks'
-)
 n_elements="${#subdirectories[@]}"
 
 #main menu
@@ -218,6 +212,7 @@ function load_pcap() {
             echo -e "\n${green} [+] Finding ${path} .....${default}\n"
             sleep 2
 
+	    #pendiente revisar esta parte, como saber si el pcap esta en el pwd o es externo
             if [ -f "$path" ];
             then
 		#pendiente verificar esta parte, para verificar si es un pcap externo o generados por el programa
@@ -281,7 +276,7 @@ function main_menu_option_1() {
                 fi
             done
         else
-	    
+    
             error_option
             flag=0
             flag2=0
@@ -343,13 +338,18 @@ function main_menu() {
     done
 }
 
-#main program
-if [ $(grep -i "debian" /etc/*-release) ];
-then
-    clear
-    main_menu
-else
-    error_distribution
-    main_menu_option_4
-fi
+function main() {
+    
+    #main program
+    if [ $(grep -i "debian" /etc/*-release) ];
+    then
+	clear
+	main_menu
+    else
+	error_distribution
+	main_menu_option_4
+    fi
+}
+
+main
 
