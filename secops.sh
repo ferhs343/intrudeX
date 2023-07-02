@@ -44,8 +44,9 @@ options_attack_detection=(
     ["Web_attacks"]=2
     ["Brute_force"]=3
     ["DNS_tunneling"]=4
-    ["LAN_attacks"]=5
-    ["Back"]=6
+    ["External_PCAPS"]=5
+    ["LAN_attacks"]=6
+    ["Back"]=7
 )
 
 function frame() {
@@ -61,12 +62,11 @@ function banner() {
     echo -e '      ________  ______   ______             _____  __________   ________'
     echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
     echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
-    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/  \t\t ${cyan}By: Luis Herrera :)${green}"
-    echo -e "                                                     |____|               \t\t ${cyan}V.1.0.0"
+    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/  \t\t ${cyan}  By: Luis Herrera${green}"
+    echo -e "                                                     |____|               \t\t ${cyan}  V 1.0.0"
     echo -e "${red}"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
-    echo -e " | Speed up the process of detecting basic attacks from a pcap file and streamline                             |"
-    echo -e " | the processes of attacks to local networks.                                                                 |"
+    echo -e " | Welcome to SecOps!!, the ideal tool to monitor the network in search of intruders. Happy hunting!! ;)       |"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
     echo -e "${default}"
 }
@@ -120,48 +120,62 @@ function tool_check() {
 	'netcat'
     )
 
-    tool_check=0
+    tool_validator=0
     no_tool=()
-
-    echo -e "${yellow}\n [+] Checking required tools.....${default}"
-    sleep 0.2
 
     for i in "${required_tools[@]}"
     do
-        if [[ $(which $i) ]];
-        then
-            echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) ${green}[OK]${default}"
-            sleep 0.2
-        else
-            echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [ERROR]${default}"
-            tool_check=1
-            no_tool+=("$i")
-            sleep 1
-        fi
+	if [[ ! $(which $i) ]];
+	then
+	    tool_validator=$((validator+1))
+	fi
     done
 
-    if [ "$tool_check" -eq 1 ];
+    if [ "$tool_validator" -gt 0 ];
     then
+	tool_validator=0
+	echo -e "${yellow}\n [+] Checking required tools.....${default}"
+	sleep 1
+	for i in "${required_tools[@]}"
+	do
+            if [[ $(which $i) ]];
+            then
+		echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) ${green}[OK]${default}"
+		sleep 1
+            else
+		echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [ERROR]${default}"
+		no_tool+=("$i")
+		sleep 1
+            fi
+	    n_elements="${#no_tool[@]}"
+	done
+
         for tool in "${no_tool[@]}"
         do
-            echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
+	    echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-            sudo apt-get install -fy $tool &>/dev/null
+	    sudo apt-get install -fy $tool &>/dev/null
 
-            if [ "$?" -eq 0 ];
-            then
-                echo -e "${green}\n [+] Installation complete.${default}"
+	    if [ "$?" -eq 0 ];
+	    then
+		echo -e "${green}\n [+] Installation complete.${default}"
+		tool_validator=$((tool_validator+1))
                 sleep 1
-            else	
+	    else	
                 error_instalation
                 sleep 2
-                main_menu_option_6
-            fi
+                main_menu_option_4
+	    fi
         done
 
-        echo -e "${green}\n\n [+] Reloading......${default}"
-        sleep 2
-        main_menu
+	if [ "$tool_validator" -eq "$n_elements" ];
+	then
+	    echo -e "${green}\n\n [+] Reloading......${default}"
+	    sleep 2
+	    main_menu
+        fi
+    else
+	 echo -e "${green}\n [+] The necessary tools are installed.${default}"
     fi
 }
 
@@ -186,7 +200,11 @@ function attack_detection_option_5() {
     load_pcap
 }
 
-function attack_detection_option_6() {
+function attack_detection_option_5() {
+    load_pcap
+}
+
+function attack_detection_option_7() {
     main_menu
 }
 
@@ -195,7 +213,7 @@ function load_pcap() {
 
     clear
     banner
-    echo -e "\n\n ${yellow}[MENU] \n\n${green} [1] Back \n${default}"
+    echo -e "\n ${yellow}[MENU] \n\n${green} [1] Back \n${default}"
     check=0
 
     while [ "$check" -eq 0 ];
@@ -221,7 +239,7 @@ function load_pcap() {
                     id_file=$((id_file+1))
                 done
 
-                cp $path $current/$new_directory/capture-$id_file.pcap
+                mv $path $current/$new_directory/capture-$id_file.pcap
 
                 echo -e "\n${green} [+] Getting ready ....."
 		sleep 1
@@ -247,7 +265,7 @@ function main_menu_option_1() {
     flag=0
     clear
     banner
-    echo -e "\n\n ${yellow}[MENU] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling\n\n [5] LAN Attacks\n\n [6] Back \n\n ${default}"
+    echo -e "\n ${yellow}[MENU] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling\n\n [5] External PCAPS \n\n [6] LAN Attacks\n\n [7] Back \n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -255,7 +273,7 @@ function main_menu_option_1() {
         prompt_option
         read -p "└─────► $(tput setaf 7)" suboption
 
-        if [[ "$suboption" -gt 6 || "$option" -lt 1 ]];
+        if [[ "$suboption" -gt 7 || "$option" -lt 1 ]];
         then
             flag2=1
         else   
@@ -287,7 +305,7 @@ function main_menu_option_1() {
 #exit
 function main_menu_option_4() {
 
-    echo -e "\nBYE!.\n"
+    echo -e "\n Exiting...\n"
     sleep 1
     clear
     exit
@@ -352,4 +370,3 @@ function main() {
 }
 
 main
-
