@@ -6,7 +6,7 @@ predefined_ports=('21' '22' '25' '80' '443' '445' '1433')
 ports=()
 captures=()
 interfaces=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
-local_ip=$(ifconfig enp4s0 | grep 'inet ' | awk '{print $2}')
+local_ip=$(ifconfig eth0 | grep 'inet ' | awk '{print $2}')
 clean=0
 clean_when_save=0
 n_elements=0
@@ -49,33 +49,38 @@ function port_scanner() {
 
 function sniffer() {
 
-    tshark -w "${general_capture}" -i enp4s0 2> /dev/null &
+    tshark -w "${general_capture}" -i eth0 2> /dev/null &
     pid_sniffer=$!
 }
 
 function filters() {
-    
-    for (( i=0;i<=$n_elements;i++ ));
-    do
-	captures+=(".${ports[$i]}.pcap")
-        if [ "$i" -eq "$n_elements" ];
-	then
-	    while true;
-	    do
-		for (( j=0;j<=$n_elements;j++ ));
-		do
-		    tshark -w "${captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${ports[$j]} && ip.addr == ${local_ip}" 2> /dev/null
-		    pid_filters=$!
-		done
 
-		if [ "$kill_filters" -eq 0 ];
-		then
-		    kill $pid_filters
-		    break
-		fi
-	    done
-	fi
-    done
+    if [ "$n_elements" -gt 0 ];
+    then
+	for (( i=0;i<=$n_elements;i++ ));
+	do
+	    captures+=(".${ports[$i]}.pcap")
+            if [ "$i" -eq "$n_elements" ];
+	    then
+		while true;
+		do
+		    for (( j=0;j<=$n_elements;j++ ));
+		    do
+			tshark -w "${captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${ports[$j]} && ip.addr == ${local_ip}" 2> /dev/null
+			pid_filters=$!
+			echo "pausando filtros"
+			sleep 5
+		    done
+
+		    if [ "$kill_filters" -eq 0 ];
+		    then
+			kill $pid_filters
+			break
+		    fi
+		done
+	    fi
+	done
+    fi
 }
 
 function denial_of_service() {
@@ -146,6 +151,7 @@ function detector() {
 		    clean_when_save=0
 		fi
 	    done
+	    
 	    if [ "$i" -eq 4 ];
 	    then
 		clean_files
@@ -158,6 +164,8 @@ function detector() {
 
 echo "[+] sniffing"
 detector
+
+
 
 
 
