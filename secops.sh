@@ -23,7 +23,6 @@ current=$PWD
 flag=0
 flag2=0
 instalation=0
-id_file=1
 name_option=""
 name_suboption=""
 n_elements="${#subdirectories[@]}"
@@ -44,9 +43,8 @@ options_attack_detection=(
     ["Web_attacks"]=2
     ["Brute_force"]=3
     ["DNS_tunneling"]=4
-    ["External_PCAPS"]=5
-    ["LAN_attacks"]=6
-    ["Back"]=7
+    ["Layer_2_attacks"]=5
+    ["Back"]=6
 )
 
 function frame() {
@@ -86,7 +84,7 @@ function error_option() {
 }
 
 function error_load_pcap() {
-    echo -e "${red}\n ERROR, the specified PCAP file does not exist!!\n\n${default}"
+    echo -e "${red}\n ERROR, the specified PCAP file does not exist in this directory!!\n\n${default}"
 }
 
 function error_instalation() {
@@ -204,14 +202,18 @@ function attack_detection_option_5() {
     load_pcap
 }
 
-function attack_detection_option_7() {
+function attack_detection_option_6() {
     main_menu
 }
 
 function list_files() {
 
     paths=(
-	'./PCAPS/Denial_of_Service'
+	"./${directory}/Denial_of_Service"
+	"./${directory}/Web_Attacks"
+	"./${directory}/Brute_Force"
+	"./${directory}/DNS_Tunneling"
+	"./${directory}/Layer_2_Attacks"
     )
     count=0
 
@@ -219,9 +221,15 @@ function list_files() {
     
     for file in $(ls "${paths[$1-1]}")
     do
+	count=$((count+1))
 	echo ""
 	echo -e "${purple}  [+] ${file}${default}"
     done
+
+    if [ "$count" -lt 1 ];
+    then
+	echo -e "${purple}\n  [+] No files available to analyze yet.${default}"
+    fi
 }
 
 #load pcap files
@@ -231,57 +239,59 @@ function load_pcap() {
     banner
     echo -e "\n ${yellow}[MENU] \n\n${green} [1] Back \n${default}"
     check=0
+    subdirectory=""
 
-    if [ "$value" -eq 1 ];
-    then
-	list_files 1
+    for i in "${subdirectories[@]}"
+    do
+	if [ "$value" -eq 1 ];
+	then
+	    list_files 1
+	    subdirectory=$i
 
-    elif [ "$value" -eq 2 ];
-    then
-	 list_files 2
+	elif [ "$value" -eq 2 ];
+	then
+	    list_files 2
+	    subdirectory=$i
 
-    elif [ "$value" -eq 3 ];
-    then
-	list_files 3
+	elif [ "$value" -eq 3 ];
+	then
+	    list_files 3
+	    subdirectory=$i
 
-    elif [ "$value" -eq 4 ];
-    then
-	list_files 4
+	elif [ "$value" -eq 4 ];
+	then
+	    list_files 4
+	    subdirectory=$i
 
-    elif [ "$value" -eq 5 ];
-    then
-	list_files 5
+	elif [ "$value" -eq 5 ];
+	then
+	    list_files 5
+	    subdirectory=$i
 
-    elif [ "$value" -eq 6 ];
-    then
-	list_files 6
-    fi
-
+	elif [ "$value" -eq 6 ];
+	then
+	    list_files 6
+	    subdirectory=$i
+	fi
+	break
+    done
+       
     while [ "$check" -eq 0 ];
     do
-        echo -e "\n\n${yellow} Enter the path of PCAP file to analyze.${default}\n"
+        echo -e "\n\n${yellow} Enter the PCAP file to analyze.${default}\n"
         prompt_suboption
-        read -p "└─────► $(tput setaf 7)" path
+        read -p "└─────► $(tput setaf 7)" pcap
 	
-        if [ "$path" == "1" ];
+        if [ "$pcap" == "1" ];
         then
             main_menu_option_1
             check=1
         else  
-            echo -e "\n${green} [+] Finding ${path} .....${default}\n"
+            echo -e "\n${green} [+] Loading PCAP${path}.....${default}\n"
             sleep 2
 
-	    #pendiente revisar esta parte, como saber si el pcap esta en el pwd o es externo
-            if [ -f "$path" ];
+            if [ -f "./$directory/$subdirectory/$pcap" ];
             then
-		#pendiente verificar esta parte, para verificar si es un pcap externo o generados por el programa
-                while [ -f $directory/capture-$id_file.pcap ];
-                do
-                    id_file=$((id_file+1))
-                done
-
-                mv $path $current/$new_directory/capture-$id_file.pcap
-
                 echo -e "\n${green} [+] Getting ready ....."
 		sleep 1
                 detect_${name_suboption}
@@ -294,7 +304,7 @@ function load_pcap() {
 	
         if [ "$check" -eq 1 ];
         then
-            echo -e "\n\n${yellow} Please, if you analyze other PCAP file, enter de path of this, otherwise, press 1 for back.${default}\n"
+            echo -e "\n\n${yellow} Please, if you analyze other PCAP file, enter name of this, otherwise, press 1 for back.${default}\n"
             check=0
         fi
     done
@@ -306,7 +316,7 @@ function main_menu_option_1() {
     flag=0
     clear
     banner
-    echo -e "\n ${yellow}[MENU] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling\n\n [5] External PCAPS \n\n [6] LAN Attacks\n\n [7] Back \n\n ${default}"
+    echo -e "\n ${yellow}[MENU] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling \n\n [5] Layer 2 Attacks\n\n [6] Back \n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -314,7 +324,7 @@ function main_menu_option_1() {
         prompt_option
         read -p "└─────► $(tput setaf 7)" suboption
 
-        if [[ "$suboption" -gt 7 || "$option" -lt 1 ]];
+        if [[ "$suboption" -gt 6 || "$option" -lt 1 ]];
         then
             flag2=1
         else   
@@ -411,3 +421,4 @@ function main() {
 }
 
 main
+
