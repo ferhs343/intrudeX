@@ -6,12 +6,14 @@ predefined_ports=('21' '22' '25' '80' '443' '445' '1433')
 ports=()
 captures=()
 interfaces=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
-local_ip=$(ifconfig eth0 | grep 'inet ' | awk '{print $2}')
-clean=0
-clean_when_save=0
+local_ip=$(ifconfig ens33 | grep 'inet ' | awk '{print $2}')
 n_elements=0
 
+#flags
+cleanFiles=1
 kill_filters=1
+
+#processes ID's
 pid_sniffer=0
 pid_filters=0
 
@@ -49,7 +51,7 @@ function port_scanner() {
 
 function sniffer() {
 
-    tshark -w "${general_capture}" -i eth0 2> /dev/null &
+    tshark -w "${general_capture}" -i ens33 2> /dev/null &
     pid_sniffer=$!
 }
 
@@ -63,12 +65,11 @@ function filters() {
             if [ "$i" -eq "$n_elements" ];
 	    then
 		while true;
-		do
+		do  
 		    for (( j=0;j<=$n_elements;j++ ));
 		    do
 			tshark -w "${captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${ports[$j]} && ip.addr == ${local_ip}" 2> /dev/null
 			pid_filters=$!
-			echo "pausando filtros"
 			sleep 5
 		    done
 
@@ -81,6 +82,11 @@ function filters() {
 	    fi
 	done
     fi
+}
+
+function port_scan() {
+    
+    echo "pcap creado"
 }
 
 function denial_of_service() {
@@ -97,26 +103,27 @@ function denial_of_service() {
 	then
 	    while [ -f $directory/$subdirectory/$file ];
 	    do
-		id_DoS=$((id_DoS+1))
-	        file="DoS-${id_DoS}.pcap"
+		id=$((id+1))
+	        file="DoS-${id}.pcap"
 	    done
 	    tshark -w "$directory/$subdirectory/$file" -r '.80.pcap' -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
 	    echo "pcap creado"
-	    clean_when_save=1
 	fi
-    done 
+    done
+    cleanFiles=0
 }
 
 function clean_files() {
-    
-    echo "eliminando"
-    for file in $(ls -a .*.pcap);
+
+    echo "limpiando archivos"
+    for file in $(ls -a .*.pcap)
     do
 	truncate --size 0 $file
     done
     echo "listo"
     kill $pid_sniffer
     sniffer
+    cleanFiles=1
 }
 
 function detector() {
@@ -125,49 +132,61 @@ function detector() {
     sniffer
     trap killer SIGINT
     filters &
+
+    for (( i=0;i<=$n_elements;i++ ));
+    do
+	captures+=(".${ports[$i]}.pcap")
+    done
     
     while true;
     do
-	for (( i=0;i<=4;i++));
+	for (( i=0;i<=10;i++));
 	do
             for (( j=0;j<=$n_elements;j++ ));
 	    do
-		#initial conditions for DoS attack
-		confition1=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
-		condition2=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
+       		#initial conditions for DoS attack
+		condition1_DoS=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
+		condition2_DoS=$(tshark -r ".80.pcap" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
 		
+		for file in "${captures[@]}"
+		do
+		    condition1_scan=$(tshark -r "${file}" -Y "tcp.flags == 0x002 || tcp.flags == 0x012 || tcp.flags == 0x010" -T fields -e "tcp.seq" 2> /dev/null | wc -l)
+		    condition2_scan=$(tshark -r "${file}" -Y "tcp.flags == 0x002 || tcp.flags == 0x012 || tcp.flags == 0x010" -T fields -e "tcp.ack" 2> /dev/null | wc -l)
+		    
+		    if [[ "$condition1_scan" -gt 0 || "condition2_scan" -gt 0 ]];
+		    then
+			echo "[ALERT] ! ==> Port Scan detected."
+			port_scan
+		    fi
+		done
+		    
 		if [ "${ports[$j]}" == '80' ];
 		then
-		    if [[ "$((condition))" -gt 10 || "$((condition2))" -gt 10 ]];
-		    then
-			echo "dos detectado"
+	            if [[ "$condition1_DoS" -gt 100 || "$condition2_DoS" -gt 100 ]];
+	            then
+     			echo "[ALERT] ! ==> Possible DoS attack detected."
 			denial_of_service
 		    fi
 		fi
+		
+		if [ "${ports[$j]}" == '21' ];
+		then
+		    continue
+		fi
 
-		if [ "$clean_when_save" -eq 1 ];
+		if [ "$cleanFiles" -eq 0 ];
 		then
 		    clean_files
-		    clean_when_save=0
 		fi
 	    done
-	    
-	    if [ "$i" -eq 4 ];
+	    if [ "$i" -eq 10 ];
 	    then
 		clean_files
 		sleep 10
-	    fi
+            fi
 	done
     done
-
 }
 
 echo "[+] sniffing"
 detector
-
-
-
-
-
-
-
