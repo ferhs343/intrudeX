@@ -208,6 +208,22 @@ function attack_detection_option_7() {
     main_menu
 }
 
+function list_files() {
+
+    paths=(
+	'./PCAPS/Denial_of_Service'
+    )
+    count=0
+
+    echo -e "${green} $(frame -)\n  PCAPS Saved\n $(frame -)${default}"
+    
+    for file in $(ls "${paths[$1-1]}")
+    do
+	echo ""
+	echo -e "${purple}  [+] ${file}${default}"
+    done
+}
+
 #load pcap files
 function load_pcap() {
 
@@ -216,9 +232,34 @@ function load_pcap() {
     echo -e "\n ${yellow}[MENU] \n\n${green} [1] Back \n${default}"
     check=0
 
+    if [ "$value" -eq 1 ];
+    then
+	list_files 1
+
+    elif [ "$value" -eq 2 ];
+    then
+	 list_files 2
+
+    elif [ "$value" -eq 3 ];
+    then
+	list_files 3
+
+    elif [ "$value" -eq 4 ];
+    then
+	list_files 4
+
+    elif [ "$value" -eq 5 ];
+    then
+	list_files 5
+
+    elif [ "$value" -eq 6 ];
+    then
+	list_files 6
+    fi
+
     while [ "$check" -eq 0 ];
     do
-        echo -e "\n${yellow} Enter the path of PCAP file to analyze.${default}\n"
+        echo -e "\n\n${yellow} Enter the path of PCAP file to analyze.${default}\n"
         prompt_suboption
         read -p "└─────► $(tput setaf 7)" path
 	
