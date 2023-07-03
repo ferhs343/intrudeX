@@ -8,5 +8,5 @@ subdirectories=(
     'Layer_2_Attacks'
 )
 general_capture=".general.pcap"
-id_DoS=1
-file="DoS-${id_DoS}.pcap"
+id=1
+file="DoS-${id}.pcap"
