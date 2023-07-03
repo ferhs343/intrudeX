@@ -2,11 +2,12 @@
 
 directory="PCAPS"
 subdirectories=(
-    'External_Pcaps'
     'Denial_of_Service'
-    'Port_Scans'
+    'Web_Attacks'
+    'Brute_Force'
+    'DNS_Tunneling'
     'Layer_2_Attacks'
 )
 general_capture=".general.pcap"
-id=1
-file="DoS-${id}.pcap"
+id_pcap=1
+file="DoS-${id_pcap}.pcap"
