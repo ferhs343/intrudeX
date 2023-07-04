@@ -48,6 +48,7 @@ options_attack_detection=(
 )
 
 function frame() {
+    
     for (( i=0;i<=70;i++ ))
     do
 	echo -n $1
@@ -64,7 +65,7 @@ function banner() {
     echo -e "                                                     |____|               \t\t ${cyan}  V 1.0.0"
     echo -e "${red}"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
-    echo -e " | Welcome to SecOps!!, the ideal tool to monitor the network in search of intruders. Happy hunting!! ;)       |"
+    echo -e " | Welcome to SecOps!!, the ideal tool to monitor the network in search of intruders. Happy hunting!! :D       |"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
     echo -e "${default}"
 }
@@ -287,12 +288,12 @@ function load_pcap() {
             main_menu_option_1
             check=1
         else  
-            echo -e "\n${green} [+] Loading PCAP${path}.....${default}\n"
+            echo -e "\n${green} [+] Loading PCAP [${pcap}] .....${default}\n"
             sleep 2
 
             if [ -f "./$directory/$subdirectory/$pcap" ];
             then
-                echo -e "\n${green} [+] Getting ready ....."
+                echo -e "\n${green} [+] Getting ready....."
 		sleep 1
                 detect_${name_suboption}
                 check=1
