@@ -1,37 +1,33 @@
 #!/bin/bash
 
-source files.sh
-
-declare -A event_counters
-event_counters=(
-    ["Connection"]=0
-    ["DoS"]=0
-)
+source Files.sh
+source Alerts.sh
+source Colors.sh
 
 tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
 udp_ports=('53' '68' '69')
 opened_ports=()
-captures=()
-interfaces=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
-local_ip=$(ifconfig enp4s0 | grep 'inet ' | awk '{print $2}')
-n_elements=0
-it=0
-value=0
-value2=0
-folder=""
-
-#flags
-kill_filters=1
-pcap_saved=1
+traffic_captures=()
+interfaces_list=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
+interfaces=()
+subdirectory_to_save=""
 
 #processes ID's
-pid_sniffer=0
-pid_filters=0
+pid_separate=""
+pid_sniffer=""
+
+#flags
+kill_separator=1
+pcap_saved=1
+tcp_connection=False
+tcp_denial=False
+banner_grabbing=False
+
 
 function killer() {
 
     kill $pid_sniffer
-    kill_filters=0
+    kill_separator=0
     
     for file in $(ls -a .*.pcap);
     do
@@ -62,124 +58,66 @@ function port_scanner() {
 	    done
         fi
     done
-		
-    echo "puertos escaneados"
-    n_elements="${#opened_ports[@]}"
 }
 
 function sniffer() {
-    
-    tshark -w "${general_capture}" -i enp4s0 2> /dev/null &
+
+    tshark -w "${general_capture}" -i $net_interface 2> /dev/null &
     pid_sniffer=$!
 }
 
-function filters() {
+function separate() {
 
-    if [ "$n_elements" -gt 0 ];
-    then
-	for (( i=0;i<=$n_elements;i++ ));
+    while true;
+    do  
+	for (( j=0;j<="${#traffic_captures[@]}";j++ ));
 	do
-	    captures+=(".${opened_ports[$i]}.pcap")
-            if [ "$i" -eq "$n_elements" ];
+	    validate=$(tshark -r "${traffic_captures[$j]}" 2> /dev/null | wc -l)
+	    tshark -w "${traffic_captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null
+	    pid_separate=$!
+	    if [ "$validate" -lt 1 ];
 	    then
-		while true;
-		do  
-		    for (( j=0;j<=$n_elements;j++ ));
-		    do
-			tshark -w "${captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${local_ip}" 2> /dev/null
-			pid_filters=$!
-			sleep 5 
-		    done
-
-		    if [ "$kill_filters" -eq 0 ];
-		    then
-			kill $pid_filters
-			break
-		    fi
-		done
+		sleep 5
 	    fi
 	done
-    fi
+
+	if [ "$kill_separator" -eq 0 ];
+	then
+	    kill $pid_separate
+	    break
+        fi
+    done
 }
 
 function pcap_saved() {
-    
+
     if [ "$pcap_saved" -eq 0 ];
     then
-	echo "[+] PCAP saved in $directory/$folder/$file"
+	echo -e "${yellow} Pcap file saved in ==> $directory/$subdirectory_to_save/$file ${default}"
     fi
 }
 
-function port_scan() {
-    
-    echo "pcap creado"
+function show_alert() {
+
+    if [ "$tcp_connection" == "True" ];
+    then
+        echo -e "\n${red} ${tcp_connection_alert}\n ${yellow}${ip} ==> ${impacted_port}${default}"
+	tcp_connection=False
+	
+    elif [ "$tcp_denial" == "True" ];
+    then
+	echo -e "\n${red} ${tcp_DoS_alert}${default}"
+	tcp_denial=False
+    fi
 }
 
-function DoS_obtain_pcap() {
-    
-    init_value=$(tshark -r '.80.pcap' 2> /dev/null | awk '{print $1}' | head -n 1)
-    echo $init_value
-    sleep 60
-    final_value=$(tshark -r '.80.pcap' 2> /dev/null | awk '{print $1}' | tail -n 1)
-    echo $final_value
+function tcp_connection_alert() {
 
-    for subdirectory in "${subdirectories[@]}"
-    do	
-	if [ "$subdirectory" == "Denial_of_Service" ];
-	then
-	    while [ -f $directory/$subdirectory/$file ];
-	    do
-	        file="DoS-${id_pcap}.pcap"
-		id_pcap=$((id_pcap+1))
-	    done
-	    tshark -w "$directory/$subdirectory/$file" -r '.80.pcap' -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
-	    pcap_saved=0
-	    folder=$subdirectory
-	fi
-    done
-}
-
-function clean_files() {
-
-    echo "limpiando archivos"
-    for file in $(ls -a .*.pcap)
-    do
-        truncate --size 0 $file
-    done
-    echo "listo"
-    kill $pid_sniffer
-    sniffer
-}
-
-function events_control() {
-
-    for key in "${!event_counters[@]}";
-    do
-	value="${options[$key]}"
-        event=$key
-
-	if [[ "$denial" -eq 0 && "$event" == "DoS" ]];
-	then
-	    value=$((value+1))
-	    value2=$((value2+value))
-	fi
-
-	if [[ "$connect" -eq 0 && "$event" == "Connection" ]];
-	then
-	    value=$((value+1))
-	    value2=$((value2+value))
-	fi
-   done
-}
-
-function tcp_connections() {
-
-    connection=False
-    ip=$(tshark -r "${captures[$it]}" -Y "tcp.flags == 0x002" -T fields -e "ip.src" 2> /dev/null | head -n 1)
-    srcport=$(tshark -r "${captures[$it]}" -Y "ip.src == ${ip} && tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
-    condition1_scan=$(tshark -r "${captures[$it]}" -Y "ip.src == ${ip} && tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    ip=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "ip.src" 2> /dev/null | head -n 1)
+    srcport=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
+    condition1_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array1=($condition1_scan)
-    condition2_scan=$(tshark -r "${captures[$it]}" -Y "ip.src == ${local_ip} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    condition2_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${your_ip} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array2=($condition2_scan)
 		    
     for (( k=0;k<="${#array1[@]}";k++ ));
@@ -198,81 +136,132 @@ function tcp_connections() {
 
 	    if [[ "${array1[$k]}" == "1" && "$synack" == "True" ]];
 	    then
-	        connection=True
+	        tcp_connection=True
 	    fi
 	done
     done
-		    
-    if [ "$connection" == "True" ];
-    then
-	connect=0
-	events_control
-        if [[ "$value2" -gt 0 && "$value2" -lt 2 ]];
-	then
-	    echo "[ALERT] ! ==> The ip [${ip}] established a connection to the port ${port}."
-	fi
-    fi
+
+    show_alert
     unset -v array1
     unset -v array2
 }
 
-function tcp_DoS() {
-    
-     condition1_DoS=$(tshark -r "${captures[$it]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
-     condition2_DoS=$(tshark -r "${captures[$it]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
-		
-     if [[ "$condition1_DoS" -gt 100 || "$condition2_DoS" -gt 100 ]];
-     then
-	 denial=0
-	 events_control
-	 if [[ "$value2" -gt 0 && "$value2" -lt 2 ]];
-	 then
-	    echo "[ALERT] ! ==> Possible TCP DoS attack detected."
-	    DoS_obtain_pcap
-	    pcap_saved
-	 fi
-     fi
-}
+function get_subdirectory() {
 
-function main() {
+    for subdirectory in "${subdirectories[@]}"
+    do	
+	if [[ "$subdirectory" == "Denial_of_Service" && "$tcp_denial" == "False" ]];
+	then
+	    subdirectory_to_save=$subdirectory
+	fi
 
-    port_scanner
-    sniffer
-    trap killer SIGINT
-    filters &
-
-    for (( i=0;i<=$n_elements;i++ ));
-    do
-	captures+=(".${opened_ports[$i]}.pcap")
-    done
-    
-    while true;
-    do
-	for (( i=0;i<=5;i++ ));
+	while [ -f $directory/$subdirectory_to_save/$file ];
 	do
-	    sleep 5
-            for (( j=0;j<=$n_elements;j++ ));
-	    do
-		port="${opened_ports[$j]}"
-		it=$j
-
-		#Attacks that apply to all tcp/udp ports
-		if [[ "$port" != '53' && "$port" != '68' && "$port" != '69' ]];
-		then
-		    tcp_connections
-		    tcp_DoS	    
-	        fi
-	    done
-	    if [ "$i" -eq 5 ];
-	    then
-	        clean_files
-		sleep 10
-		value2=0
-      	    fi
+            file="capture-${id_pcap}.pcap"
+	    id_pcap=$((id_pcap+1))
 	done
     done
 }
 
-echo "[+] sniffing"
+function dos_obtain_pcap() {
+
+    init_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | head -n 1)
+    sleep 60
+    final_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | tail -n 1)
+    get_subdirectory
+    tshark -w "$directory/$subdirectory_to_save/$file" -r "${traffic_captures[$index]}" -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
+    pcap_saved=0
+    pcap_saved
+}
+
+function tcp_dos_alert() {
+
+    condition1_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
+    condition2_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
+		
+    if [[ "$condition1_DoS" -gt 100 || "$condition2_DoS" -gt 100 ]];
+    then
+	tcp_denial=True
+	show_alert
+	dos_obtain_pcap
+    fi
+}
+
+function clean_captures() {
+
+    echo "eliminando captura general"
+    for file in $(ls .*.pcap);
+    do
+	truncate --size 0 $file
+    done
+    echo "listo"
+    sniffer
+}
+
+function analyzer() {
+
+    while true;
+    do
+        for (( i=0;i<="${#opened_ports[@]}";i++ ));
+	do
+	    index=$i
+	    impacted_port="${opened_ports[$i]}"
+	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
+	    if [ "$validate" -lt 1 ];
+	    then
+		sleep 5
+	    else
+	        if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+	        then
+	   	    tcp_connection_alert
+	      	    tcp_dos_alert
+		fi
+	    fi
+	done
+    done
+}
+
+function main() {
+
+    clear
+    echo -e "${cyan}\n SecOps V 1.0.0 - By: Luis Herrera"
+    echo -e "${green}\n [+] Loading....${default}"
+    sleep 5
+    port_scanner
+    
+    if [ "${#opened_ports[@]}" -ge 1 ];
+    then
+	interfaces=($interfaces_list)
+	echo -e "\n\n${red} Available interfaces:"
+	for interface in "${interfaces[@]}"
+	do
+	    echo -e "\n [+] ${interface}"
+	done
+	
+	echo -e "${yellow}\n Which interface do you want to sniff?: ${default}"
+	read net_interface
+	your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
+	
+	trap killer SIGINT
+	clear
+	sniffer
+
+	for (( i=0;i<="${#opened_ports[@]}";i++ ));
+	do
+	    port="${opened_ports[$i]}"
+	    file_port=".${port}.pcap"
+            traffic_captures+=($file_port)
+	    if [ "$i" -eq "${#opened_ports[@]}" ];
+	    then
+		separate &
+		analyzer
+	    fi
+	done
+
+    else
+	echo -e "${yellow}\n [+] Warning! You dont have open ports to start attack detection, it is recommended to run the Layer 2 Attack detector instead.${default}\n"
+    fi
+}
+
 main
 
