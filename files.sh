@@ -10,4 +10,4 @@ subdirectories=(
 )
 general_capture=".general.pcap"
 id_pcap=1
-file="DoS-${id_pcap}.pcap"
+file="capture-${id_pcap}.pcap"
