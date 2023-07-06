@@ -8,15 +8,8 @@
 #    - Utilidades para la ejecución de Threat Intellingece
 # Luis Herrera, Abril 2023
 
-source files.sh
-
-#colors
-default="\033[0m\e[0m"
-yellow="\e[1;93m"
-red="\e[1;91m"
-cyan="\e[1;94m"
-green="\e[1;92m"
-purple="\e[1;95m"
+source Files.sh
+source Colors.sh
 
 #global variables
 current=$PWD
@@ -98,6 +91,7 @@ function error_distribution() {
 }
 
 function create() {
+    
     if [[ ! -d $directory ]];
     then
 	mkdir $directory
@@ -422,4 +416,6 @@ function main() {
 }
 
 main
+
+
 
