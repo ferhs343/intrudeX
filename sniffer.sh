@@ -1,8 +1,8 @@
 #!/bin/bash
 
-source Files.sh
+source files.sh
 source Alerts.sh
-source Colors.sh
+source colors.sh
 
 tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
 udp_ports=('53' '68' '69')
@@ -72,10 +72,10 @@ function separate() {
     do  
 	for (( j=0;j<="${#traffic_captures[@]}";j++ ));
 	do
-	    validate=$(tshark -r "${traffic_captures[$j]}" 2> /dev/null | wc -l)
+	    validate2=$(tshark -r "${traffic_captures[$j]}" 2> /dev/null | wc -l)
 	    tshark -w "${traffic_captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null
 	    pid_separate=$!
-	    if [ "$validate" -lt 1 ];
+	    if [ "$validate2" -lt 1 ];
 	    then
 		sleep 5
 	    fi
@@ -195,6 +195,7 @@ function clean_captures() {
 	truncate --size 0 $file
     done
     echo "listo"
+    kill $pid_sniffer
     sniffer
 }
 
@@ -207,15 +208,20 @@ function analyzer() {
 	    index=$i
 	    impacted_port="${opened_ports[$i]}"
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
+        
 	    if [ "$validate" -lt 1 ];
 	    then
 		sleep 5
-	    else
-	        if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
-	        then
-	   	    tcp_connection_alert
-	      	    tcp_dos_alert
-		fi
+		break
+		
+	    elif [ "$i" -eq 2 ];
+	    then
+		clean_captures
+		
+	    elif [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+	    then
+		tcp_connection_alert
+	      	tcp_dos_alert
 	    fi
 	done
     done
@@ -264,4 +270,3 @@ function main() {
 }
 
 main
-
