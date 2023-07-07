@@ -38,7 +38,7 @@ function killer() {
 
 function port_scanner() {
     
-    for (( i=0;i<="${#tcp_ports[@]}";i++ ))
+    for (( i=0;i<="$(( ${#tcp_ports[@]} -1 ))";i++ ))
     do
         nc -zvn 127.0.0.1 "${tcp_ports[$i]}" 2> /dev/null
 	if [ "$?" -eq 0 ];
@@ -46,9 +46,9 @@ function port_scanner() {
 	    opened_ports+=("${tcp_ports[$i]}")
 	fi
 	
-	if [ "$i" -eq "${#tcp_ports[@]}" ];
+	if [ "$i" -eq "$(( ${#tcp_ports[@]} -1 ))" ];
 	then
-	    for (( j=0;j<="${#udp_ports[@]}";j++ ));
+	    for (( j=0;j<="$(( ${#udp_ports[@]} -1 ))";j++ ));
 	    do
 		nc -zvnu 127.0.0.1 "${udp_ports[$j]}" 2> /dev/null
 		if [ "$?" -eq 0 ];
@@ -69,15 +69,18 @@ function sniffer() {
 function separate() {
 
     while true;
-    do  
+    do
 	for (( j=0;j<="${#traffic_captures[@]}";j++ ));
 	do
-	    validate2=$(tshark -r "${traffic_captures[$j]}" 2> /dev/null | wc -l)
-	    tshark -w "${traffic_captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null
-	    pid_separate=$!
-	    if [ "$validate2" -lt 1 ];
+	    condition=$(tshark -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null | wc -l)
+	    if [ "$condition" -gt 1 ];
 	    then
-		sleep 5
+		tshark -w "${traffic_captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null
+		pid_separate=$!
+		if [ "$j" -eq "${#traffic_captures[@]}" ]
+		then
+		    sleep 5
+		fi
 	    fi
 	done
 
@@ -101,7 +104,7 @@ function show_alert() {
 
     if [ "$tcp_connection" == "True" ];
     then
-        echo -e "\n${red} ${tcp_connection_alert}\n ${yellow}${ip} ==> ${impacted_port}${default}"
+        echo -e "\n${red} ${tcp_connection_alert}\n ${yellow}${ip}:${impacted_port}${default}"
 	tcp_connection=False
 	
     elif [ "$tcp_denial" == "True" ];
@@ -189,7 +192,7 @@ function tcp_dos_alert() {
 
 function clean_captures() {
 
-    echo "eliminando captura general"
+    echo "eliminando capturas"
     for file in $(ls .*.pcap);
     do
 	truncate --size 0 $file
@@ -200,30 +203,32 @@ function clean_captures() {
 }
 
 function analyzer() {
-
+    
     while true;
     do
-        for (( i=0;i<="${#opened_ports[@]}";i++ ));
+	count=0
+        for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
 	do
-	    index=$i
-	    impacted_port="${opened_ports[$i]}"
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
-        
-	    if [ "$validate" -lt 1 ];
+
+	    if [ "$validate" -gt 0 ];
 	    then
-		sleep 5
-		break
-		
-	    elif [ "$i" -eq 2 ];
+		count=$((count+1))
+	    fi
+	    
+	    if [ "$count" -gt 0 ];
 	    then
-		clean_captures
-		
-	    elif [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
-	    then
-		tcp_connection_alert
-	      	tcp_dos_alert
+	        echo $i
+		index=$i
+	        impacted_port="${opened_ports[$i]}"
+	        if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+	        then
+	            tcp_dos_alert
+	            tcp_connection_alert
+	        fi
 	    fi
 	done
+	sleep 5
     done
 }
 
@@ -248,22 +253,28 @@ function main() {
 	read net_interface
 	your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
 	
-	trap killer SIGINT
 	clear
-	sniffer
-
-	for (( i=0;i<="${#opened_ports[@]}";i++ ));
+	echo -e "${green}\n [+] Loading....${default}"
+	sleep 2
+	
+	for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
 	do
 	    port="${opened_ports[$i]}"
 	    file_port=".${port}.pcap"
             traffic_captures+=($file_port)
-	    if [ "$i" -eq "${#opened_ports[@]}" ];
+	    touch "${traffic_captures[$i]}"
+	    
+	    if [ "$i" -eq "$(( ${#opened_ports[@]} - 1 ))" ];
 	    then
 		separate &
-		analyzer
+		clear
+		echo -e "${green}\n [+] Sniffing in ${net_interface} interface....${default}"
+		trap killer SIGINT
+		sniffer
 	    fi
 	done
 
+	analyzer
     else
 	echo -e "${yellow}\n [+] Warning! You dont have open ports to start attack detection, it is recommended to run the Layer 2 Attack detector instead.${default}\n"
     fi
