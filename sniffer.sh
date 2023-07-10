@@ -1,8 +1,8 @@
 #!/bin/bash
 
-source files.sh
+source Files.sh
 source Alerts.sh
-source colors.sh
+source Colors.sh
 
 tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
 udp_ports=('53' '68' '69')
@@ -10,6 +10,7 @@ opened_ports=()
 traffic_captures=()
 interfaces_list=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
 interfaces=()
+obtain_before=()
 subdirectory_to_save=""
 
 #processes ID's
@@ -23,6 +24,14 @@ tcp_connection=False
 tcp_denial=False
 banner_grabbing=False
 
+function show_help() {
+
+    echo -e "${yellow}\n SecOps V 1.0.0 - By: Luis Herrera${green}"
+    echo -e "\n ¿How to use?"
+    echo -e "\n\t -i, --interface:Establish a listening interface."
+    echo -e "\n\t -l, --list-interfaces:Show available interfaces in your system."
+    echo -e "\n\t -h, --help:Show this panel.\n${default}"
+}
 
 function killer() {
 
@@ -64,6 +73,14 @@ function sniffer() {
 
     tshark -w "${general_capture}" -i $net_interface 2> /dev/null &
     pid_sniffer=$!
+}
+
+function clean_captures() {
+
+    truncate --size 0 $general_capture
+    truncate --size 0 "${traffic_captures[$index]}"
+    kill $pid_sniffer
+    sniffer
 }
 
 function separate() {
@@ -112,6 +129,23 @@ function show_alert() {
     fi
 }
 
+function get_subdirectory() {
+
+    for subdirectory in "${subdirectories[@]}"
+    do	
+	if [ "$subdirectory" == "Denial_of_Service" ];
+	then
+	    subdirectory_to_save=$subdirectory
+	fi
+
+	while [ -f $directory/$subdirectory_to_save/$file ];
+	do
+            file="capture-${id_pcap}.pcap"
+	    id_pcap=$((id_pcap+1))
+	done
+    done
+}
+
 function tcp_connection_alert() {
 
     ip=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "ip.src" 2> /dev/null | head -n 1)
@@ -147,23 +181,6 @@ function tcp_connection_alert() {
     unset -v array2
 }
 
-function get_subdirectory() {
-
-    for subdirectory in "${subdirectories[@]}"
-    do	
-	if [ "$subdirectory" == "Denial_of_Service" ];
-	then
-	    subdirectory_to_save=$subdirectory
-	fi
-
-	while [ -f $directory/$subdirectory_to_save/$file ];
-	do
-            file="capture-${id_pcap}.pcap"
-	    id_pcap=$((id_pcap+1))
-	done
-    done
-}
-
 function dos_obtain_pcap() {
 
     init_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | head -n 1)
@@ -188,15 +205,7 @@ function tcp_dos_alert() {
     fi
 }
 
-function clean_captures() {
-
-    truncate --size 0 $general_capture
-    truncate --size 0 "${traffic_captures[$index]}"
-    kill $pid_sniffer
-    sniffer
-}
-
-function attacks() {
+function start_attack_detection() {
 
     if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
     then
@@ -210,7 +219,6 @@ function analyzer() {
     while true;
     do
 	count=0
-	obtain_before=()
         for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
 	do
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
@@ -226,23 +234,22 @@ function analyzer() {
 		index=$i
 	        impacted_port="${opened_ports[$i]}"
 
-		attacks
+	        start_attack_detection
 		clean_captures
 
 	        if [ "$i" -eq "$((${#opened_ports[@]} - 1))" ];
 	        then
 		    primary_index="${obtain_before[0]}"
-		    if [ "$primary_index" -gt 0 ];
+		    if [ "$((primary_index))" -gt 0 ];
 		    then
 			for (( j=$((primary_index - 1));j>=0;j-- ));
 			do
-			    echo $j
 			    index=$j
 			    impacted_port="${opened_ports[$j]}"
 
-			    attacks
-			    #que borre los archivos anteriores (incluyendo el general), pero no los actuales, y cuando acabe este bucle, eliminar solamente los actuales (INCLUYENDO EN GENERAL),
-			    #CREO FUNCIONA
+			    start_attack_detection
+			    clean_captures
+			    unset obtain_before
 			done
 		    fi
 		fi
@@ -257,28 +264,13 @@ function analyzer() {
 function main() {
 
     clear
-    echo -e "${cyan}\n SecOps V 1.0.0 - By: Luis Herrera"
-    echo -e "${green}\n [+] Loading....${default}"
-    sleep 5
+    echo -e "${green} \nLoading....${default}"
     port_scanner
-    
-    if [ "${#opened_ports[@]}" -ge 1 ];
+    sleep 5
+
+    if [ "${#opened_ports[@]}" -gt 0 ];
     then
-	interfaces=($interfaces_list)
-	echo -e "\n\n${red} Available interfaces:"
-	for interface in "${interfaces[@]}"
-	do
-	    echo -e "\n [+] ${interface}"
-	done
-	
-	echo -e "${yellow}\n Which interface do you want to sniff?: ${default}"
-	read net_interface
 	your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
-	
-	clear
-	echo -e "${green}\n [+] Loading....${default}"
-	sleep 2
-	
 	for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
 	do
 	    port="${opened_ports[$i]}"
@@ -288,18 +280,63 @@ function main() {
 	    
 	    if [ "$i" -eq "$(( ${#opened_ports[@]} - 1 ))" ];
 	    then
+		trap killer SIGINT
+		sniffer
 		separate &
 		clear
 		echo -e "${green}\n [+] Sniffing in ${net_interface} interface....${default}"
-		trap killer SIGINT
-		sniffer
+		analyzer
 	    fi
-	done
-
-	analyzer
+	done	
     else
 	echo -e "${yellow}\n [+] Warning! You dont have open ports to start attack detection, it is recommended to run the Layer 2 Attack detector instead.${default}\n"
     fi
 }
 
-main
+arg=$1
+if [ "$(id -u)" == "0" ];
+then
+    if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
+    then
+	show_help
+	exit
+
+    elif [ "$arg" == "--interface" ] || [ "$arg" == "-i" ]
+    then
+	start=1
+        net_interface=$2
+        interfaces=($interfaces_list)
+	for (( i=0;i<="$((${#interfaces[@]} - 1))";i++ ));
+	do
+	    if [ "$net_interface" == "${interfaces[$i]}" ];
+	    then
+		start=0
+		break
+	    fi
+	done
+
+	if [ "$start" -eq 0 ];
+	then
+	    main
+	else
+	    echo -e "${red}\n ERROR, The especified interface is not correct, try again.\n${default}"
+	    sleep 2
+	fi
+	
+    elif  [ "$arg" == "--list-interfaces" ] || [ "$arg" == "-l" ]
+    then
+        interfaces=($interfaces_list)
+	echo -e "${yellow}\n Available interfaces:\n"
+	for (( i=0;i<="$((${#interfaces[@]} - 1))";i++ ));
+	do
+	    echo -e "${green} [+] ${interfaces[$i]}${default}\n"
+	done
+    else
+	show_help
+	exit
+    fi
+else
+    echo -e "${red} ERROR, to run SecOps you must be root user.${default}"
+    sleep 5
+fi
+
