@@ -38,7 +38,7 @@ function killer() {
 
 function port_scanner() {
     
-    for (( i=0;i<="$(( ${#tcp_ports[@]} -1 ))";i++ ))
+    for (( i=0;i<="$((${#tcp_ports[@]} - 1))";i++ ))
     do
         nc -zvn 127.0.0.1 "${tcp_ports[$i]}" 2> /dev/null
 	if [ "$?" -eq 0 ];
@@ -70,19 +70,17 @@ function separate() {
 
     while true;
     do
-	for (( j=0;j<="${#traffic_captures[@]}";j++ ));
+	for (( j=0;j<="$((${#traffic_captures[@]} - 1))";j++ ));
 	do
 	    condition=$(tshark -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null | wc -l)
-	    if [ "$condition" -gt 1 ];
+	    if [ "$((condition))" -gt 1 ];
 	    then
 		tshark -w "${traffic_captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null
 		pid_separate=$!
-		if [ "$j" -eq "${#traffic_captures[@]}" ]
-		then
-		    sleep 5
-		fi
 	    fi
 	done
+
+        sleep 5
 
 	if [ "$kill_separator" -eq 0 ];
 	then
@@ -153,7 +151,7 @@ function get_subdirectory() {
 
     for subdirectory in "${subdirectories[@]}"
     do	
-	if [[ "$subdirectory" == "Denial_of_Service" && "$tcp_denial" == "False" ]];
+	if [ "$subdirectory" == "Denial_of_Service" ];
 	then
 	    subdirectory_to_save=$subdirectory
 	fi
@@ -192,14 +190,19 @@ function tcp_dos_alert() {
 
 function clean_captures() {
 
-    echo "eliminando capturas"
-    for file in $(ls .*.pcap);
-    do
-	truncate --size 0 $file
-    done
-    echo "listo"
+    truncate --size 0 $general_capture
+    truncate --size 0 "${traffic_captures[$index]}"
     kill $pid_sniffer
     sniffer
+}
+
+function attacks() {
+
+    if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+    then
+	tcp_connection_alert
+        tcp_dos_alert
+    fi 
 }
 
 function analyzer() {
@@ -207,25 +210,44 @@ function analyzer() {
     while true;
     do
 	count=0
+	obtain_before=()
         for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
 	do
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
 
 	    if [ "$validate" -gt 0 ];
 	    then
-		count=$((count+1))
+		count=$((count+$i))
+		obtain_before+=("$count")
 	    fi
 	    
-	    if [ "$count" -gt 0 ];
+	    if [ "$count" != 0 ];
 	    then
-	        echo $i
 		index=$i
 	        impacted_port="${opened_ports[$i]}"
-	        if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+
+		attacks
+		clean_captures
+
+	        if [ "$i" -eq "$((${#opened_ports[@]} - 1))" ];
 	        then
-	            tcp_dos_alert
-	            tcp_connection_alert
-	        fi
+		    primary_index="${obtain_before[0]}"
+		    if [ "$primary_index" -gt 0 ];
+		    then
+			for (( j=$((primary_index - 1));j>=0;j-- ));
+			do
+			    echo $j
+			    index=$j
+			    impacted_port="${opened_ports[$j]}"
+
+			    attacks
+			    #que borre los archivos anteriores (incluyendo el general), pero no los actuales, y cuando acabe este bucle, eliminar solamente los actuales (INCLUYENDO EN GENERAL),
+			    #CREO FUNCIONA
+			done
+		    fi
+		fi
+
+		clean_captures
 	    fi
 	done
 	sleep 5
