@@ -2,7 +2,7 @@
 
 #All alerts to be executed in case of detecting anomalies in the network
 
-tcp_connection_alert="[ALERT] ! TCP Connection Established"
+tcp_connection_alert="[ALERT] ! ==> TCP Connection Established"
 tcp_DoS_alert="[ALERT] ! ==> Possible TCP Denial Of Service Attack"
 udp_DoS_alert="[ALERT] ! ==> Possible UDP Denial Of Service Attack"
 banner_grabing_alert="[ALERT] ! ==> Nmap Banner Grabing Detected"
