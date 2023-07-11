@@ -50,7 +50,7 @@ function frame() {
 
 #main banner
 function banner() {
-    echo -e "${green}"
+    echo -e "${green}"   
     echo -e '      ________  ______   ______             _____  __________   ________'
     echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
     echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
