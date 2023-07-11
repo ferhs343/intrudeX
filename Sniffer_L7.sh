@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# intrudeX
+# --------
+# Herramienta enfocada a la detección de intrusos en tu host local.
+#    - Detección de ataques a nivel de capa de aplicación, así como a nivel de capa 2
+#    - Detección de tecnicas de reconocimiento
+#    - Así mismo, intrudeX cuenta con utilidades para la ejecución de Threat Intellingece
+# Luis Herrera, Abril 2023
+
 source Files.sh
 source Alerts.sh
 source Colors.sh
@@ -26,7 +34,7 @@ banner_grabbing=False
 
 function show_help() {
 
-    echo -e "${yellow}\n SecOps V 1.0.0 - By: Luis Herrera${green}"
+    echo -e "${yellow}\n intrudeX V 1.0.0 - By: Luis Herrera${green}"
     echo -e "\n ¿How to use?"
     echo -e "\n\t -i, --interface:Establish a listening interface."
     echo -e "\n\t -l, --list-interfaces:Show available interfaces in your system."
@@ -336,7 +344,6 @@ then
 	exit
     fi
 else
-    echo -e "${red} ERROR, to run SecOps you must be root user.${default}"
+    echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 5
 fi
-
