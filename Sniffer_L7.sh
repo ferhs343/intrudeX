@@ -55,7 +55,7 @@ function killer() {
 
 function port_scanner() {
     
-    for (( i=0;i<="$((${#tcp_ports[@]} - 1))";i++ ))
+    for (( i=0;i<="$((${#tcp_ports[@]} - 1))";i++ ));
     do
         nc -zvn 127.0.0.1 "${tcp_ports[$i]}" 2> /dev/null
 	if [ "$?" -eq 0 ];
