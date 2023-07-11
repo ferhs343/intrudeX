@@ -1,9 +1,8 @@
-# Sec-Ops
+# intrudeX
 
 CONTINUA EN DESARROLLO .....
 
-![image](https://github.com/ferhs343/Sec-Ops/assets/114626248/bcb14190-e04f-473b-b6e9-ba977bfc1dc9)
-
+![image](https://github.com/ferhs343/intrudeX/assets/114626248/b7c31c6c-cab9-4008-a1e1-e7b2f52971fd)
 
 # ¿Qué es?
 
