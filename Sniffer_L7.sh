@@ -286,7 +286,7 @@ function main() {
             traffic_captures+=($file_port)
 	    touch "${traffic_captures[$i]}"
 	    
-	    if [ "$i" -eq "${#opened_ports[@]} - 1 ];
+	    if [ "$i" -eq ${#opened_ports[@]} - 1 ];
 	    then
 		trap killer SIGINT
 		sniffer
