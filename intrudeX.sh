@@ -1,11 +1,11 @@
 #!/bin/bash
-#
-# SEC-OPS
+
+# intrudeX
 # --------
-# Herramienta con múltiples utilidades para equipos de respuesta a incidentes.
-#    - Detección de ataques más comunes a nivel de capa de aplicación, así como a nivel de capa 2
-#    - Detección de reconocimiento a la infraestructura
-#    - Utilidades para la ejecución de Threat Intellingece
+# Herramienta enfocada a la detección de intrusos en tu host local.
+#    - Detección de ataques a nivel de capa de aplicación, así como a nivel de capa 2
+#    - Detección de tecnicas de reconocimiento
+#    - Así mismo, intrudeX cuenta con utilidades para la ejecución de Threat Intellingece
 # Luis Herrera, Abril 2023
 
 source Files.sh
@@ -51,22 +51,21 @@ function frame() {
 #main banner
 function banner() {
 
-       ▄▄▄· ▄▄▄·▄▄▄ . ▐ ▄  ▄ .▄▄▄▄ .▪  • ▌ ▄ ·. ▄▄▄ .▄▄▄  
-▪     ▐█ ▄█▐█ ▄█▀▄.▀·•█▌▐███▪▐█▀▄.▀·██ ·██ ▐███▪▀▄.▀·▀▄ █·
- ▄█▀▄  ██▀· ██▀·▐▀▀▪▄▐█▐▐▌██▀▐█▐▀▀▪▄▐█·▐█ ▌▐▌▐█·▐▀▀▪▄▐▀▀▄ 
-▐█▌.▐▌▐█▪·•▐█▪·•▐█▄▄▌██▐█▌██▌▐▀▐█▄▄▌▐█▌██ ██▌▐█▌▐█▄▄▌▐█•█▌
- ▀█▄▀▪.▀   .▀    ▀▀▀ ▀▀ █▪▀▀▀ · ▀▀▀ ▀▀▀▀▀  █▪▀▀▀ ▀▀▀ .▀  ▀
-    echo -e "${green}"   
-    echo -e '      ________  ______   ______             _____  __________   ________'
-    echo -e '     /   ____/ /  __  \ /  ____\   _____   /     \ \_____    \ /   ____/'
-    echo -e '     \____   \ |  ____/ \  \____   |____|    ---     |    ___/ \____   \ '
-    echo -e "     /_______/ \_____>   \______\          \_____/   |    |    /_______/  \t\t ${cyan}  By: Luis Herrera${green}"
-    echo -e "                                                     |____|               \t\t ${cyan}  V 1.0.0"
+    echo -e "${purple}"   
+    echo -e '   ──▀▀▀▀▀▀▀▀▀▀▀▄▄▀▀▀▀▀▀▀▀▀▀▀'
+    echo -e '   ────────────█▀▀█ '
+    echo -e '   ───────────█▓▓▓▓█                 _)         |                     |      \ \  / '
+    echo -e '   ───────══▄▀█▓▓▓▓█▀▄══              |  __ \   __|   __|  |   |   _` |   _ \ \  / '
+    echo -e '   ──▄▄▄▄▄▄▄█▒█▓▓▓▓█▒█▄▄▄▄▄▄▄         |  |   |  |    |     |   |  (   |   __/    \  '
+    echo -e '   ──█▀▀▀▀█▀███▄▓▓▄███▀█▀▀▀▀█        _| _|  _| \__| _|    \__,_| \__,_| \___| _/\_\ '
+    echo -e "   ─▄█▄──▄█▄───▀██▀───▄█▄──▄█▄                                                              ${green}By: Luis Herrera${purple}"
+    echo -e "   ─█▒█──█▒█──────────█▒█──█▒█                                                              ${green}V 1.0.0${purple}"
+    echo -e '   ─▀▀▀──▀▀▀──────────▀▀▀──▀▀▀'
     echo -e "${red}"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
-    echo -e " | Welcome to SecOps!!, the ideal tool to monitor the network in search of intruders. Happy hunting!! :D       |"
+    echo -e " | Welcome to intrudeX!!, the ideal tool to monitor the network in search of intruders. Happy hunting!! :D     |"
     echo -e " +-------------------------------------------------------------------------------------------------------------+"
-    echo -e "${default}"
+    echo -e "${default}"                                               
 }
 
 #prompt
@@ -92,7 +91,7 @@ function error_instalation() {
 }
 
 function error_distribution() {
-    echo -e "${red}\n [+] ERROR, your linux distribution is not compatible with this tool, this tool works on Debian-based distributions!${default}"
+    echo -e "${red}\n [+] ERROR, your linux distribution is not compatible with intrudeX, this tool works on Debian-based distributions!${default}"
     sleep 10
 }
 
@@ -422,5 +421,4 @@ function main() {
 }
 
 main
-
 
