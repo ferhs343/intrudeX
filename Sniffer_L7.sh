@@ -65,7 +65,7 @@ function port_scanner() {
 	
 	if [ "$i" -eq "$(( ${#tcp_ports[@]} -1 ))" ];
 	then
-	    for (( j=0;j<="$(( ${#udp_ports[@]} -1 ))";j++ ));
+	    for (( j=0;j<=${#udp_ports[@]} -1;j++ ));
 	    do
 		nc -zvnu 127.0.0.1 "${udp_ports[$j]}" 2> /dev/null
 		if [ "$?" -eq 0 ];
@@ -95,7 +95,7 @@ function separate() {
 
     while true;
     do
-	for (( j=0;j<="$((${#traffic_captures[@]} - 1))";j++ ));
+	for (( j=0;j<=${#traffic_captures[@]} - 1;j++ ));
 	do
 	    condition=$(tshark -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null | wc -l)
 	    if [ "$((condition))" -gt 1 ];
@@ -227,7 +227,7 @@ function analyzer() {
     while true;
     do
 	count=0
-        for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
+        for (( i=0;i<=${#opened_ports[@]} - 1;i++ ));
 	do
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
 
@@ -245,7 +245,7 @@ function analyzer() {
 	        start_attack_detection
 		clean_captures
 
-	        if [ "$i" -eq "$((${#opened_ports[@]} - 1))" ];
+	        if [ "$i" -eq ${#opened_ports[@]} - 1 ];
 	        then
 		    primary_index="${obtain_before[0]}"
 		    if [ "$((primary_index))" -gt 0 ];
@@ -279,14 +279,14 @@ function main() {
     if [ "${#opened_ports[@]}" -gt 0 ];
     then
 	your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
-	for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
+	for (( i=0;i<=${#opened_ports[@]} - 1;i++ ));
 	do
 	    port="${opened_ports[$i]}"
 	    file_port=".${port}.pcap"
             traffic_captures+=($file_port)
 	    touch "${traffic_captures[$i]}"
 	    
-	    if [ "$i" -eq "$(( ${#opened_ports[@]} - 1 ))" ];
+	    if [ "$i" -eq "${#opened_ports[@]} - 1 ];
 	    then
 		trap killer SIGINT
 		sniffer
@@ -314,7 +314,7 @@ then
 	start=1
         net_interface=$2
         interfaces=($interfaces_list)
-	for (( i=0;i<="$((${#interfaces[@]} - 1))";i++ ));
+	for (( i=0;i<=${#interfaces[@]} - 1;i++ ));
 	do
 	    if [ "$net_interface" == "${interfaces[$i]}" ];
 	    then
@@ -335,7 +335,7 @@ then
     then
         interfaces=($interfaces_list)
 	echo -e "${yellow}\n Available interfaces:\n"
-	for (( i=0;i<="$((${#interfaces[@]} - 1))";i++ ));
+	for (( i=0;i<=${#interfaces[@]} - 1;i++ ));
 	do
 	    echo -e "${green} [+] ${interfaces[$i]}${default}\n"
 	done
