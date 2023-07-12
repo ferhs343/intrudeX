@@ -1,5 +1,9 @@
 #!/bin/bash
 
+################################
+#NOTA: posible solucion - en ves de usar truncate, borrar directamente el archivo pcap de cada puerto, y volverlo a crear cuando acabe la iteracion
+#		        - manejar correctamente una relacion entre separate() y analyze(), por ejemplo, que la funcion separate() establesca una flag para comenzar a analizar 
+
 # intrudeX
 # --------
 # Herramienta enfocada a la detección de intrusos en tu host local.
