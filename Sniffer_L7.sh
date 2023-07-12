@@ -227,6 +227,7 @@ function analyzer() {
     while true;
     do
 	count=0
+ 	obtain_before=()
         for (( i=0;i<=${#opened_ports[@]} - 1;i++ ));
 	do
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
@@ -257,11 +258,10 @@ function analyzer() {
 
 			    start_attack_detection
 			    clean_captures
-			    unset obtain_before
 			done
 		    fi
 		fi
-
+		unset obtain_before[*]
 		clean_captures
 	    fi
 	done
