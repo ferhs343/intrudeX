@@ -80,6 +80,7 @@ function sniffer() {
 
     tshark -w "${general_capture}" -i $net_interface 2> /dev/null &
     pid_sniffer=$!
+    #principal sniffer process ID
 }
 
 function clean_captures() {
@@ -101,6 +102,7 @@ function separate() {
 	    then
 		tshark -w "${traffic_captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null
 		pid_separate=$!
+		#separator process ID
 	    fi
 	done
 	
@@ -122,14 +124,16 @@ function pcap_saved() {
 
 function show_alert() {
 
+    time=$(date +%H:%M:%S)
+    echo -e "\n${green} [$time]${default}"
     if [ "$tcp_connection" == "True" ];
     then
-        echo -e "\n${red} ${tcp_connection_alert}\n ${yellow}${ip}:${impacted_port}${default}"
+        echo -e "${red} ${tcp_connection_alert}\n ${yellow}${ip}:${impacted_port}${default}"
 	tcp_connection=False
 	
     elif [ "$tcp_denial" == "True" ];
     then
-	echo -e "\n${red} ${tcp_DoS_alert}${default}"
+	echo -e "${red} ${tcp_DoS_alert}${default}"
 	tcp_denial=False
     fi
 }
@@ -182,8 +186,8 @@ function tcp_connection_alert() {
     done
 
     show_alert
-    unset -v array1
-    unset -v array2
+    unset array1[*]
+    unset array2[*]
 }
 
 function dos_obtain_pcap() {
@@ -226,7 +230,6 @@ function analyzer() {
         for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
 	do
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
-
 	    if [ "$validate" -gt 0 ];
 	    then
 		index=$i
@@ -242,7 +245,7 @@ function analyzer() {
 function main() {
 
     clear
-    echo -e "${green} \nLoading....${default}"
+    echo -e "${green}\n Loading....${default}"
     port_scanner
     sleep 5
 
@@ -317,3 +320,4 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 5
 fi
+
