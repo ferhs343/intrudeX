@@ -2,7 +2,8 @@
 
 CONTINUA EN DESARROLLO .....
 
-![image](https://github.com/ferhs343/intrudeX/assets/114626248/b7c31c6c-cab9-4008-a1e1-e7b2f52971fd)
+![image](https://github.com/ferhs343/intrudeX/assets/114626248/69f56f5a-4fac-483f-a333-ad7e46a723f2)
+
 
 # ¿Qué es?
 
