@@ -1,4 +1,3 @@
-#!/bin/bash
 
 # intrudeX
 # --------
@@ -14,14 +13,17 @@ source Colors.sh
 
 tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
 udp_ports=('53' '68' '69')
+layer2_protocols=('arp' 'stp' 'dtp' 'cdp' 'lldp')
 opened_ports=()
 traffic_captures=()
+traffic_captures_l2=()
 interfaces_list=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
 interfaces=()
 subdirectory_to_save=""
 
 #processes ID's
-pid_separate=""
+pid_separate_l7=""
+pid_separate_l2=""
 pid_sniffer=""
 
 #flags
@@ -91,24 +93,47 @@ function clean_captures() {
     sniffer
 }
 
-function separate() {
+function separate_l2() {
+
+
+    #modificar esta parte, en base a los intervalos de tiempo que cada protocolo maneja para su reenvio
+    while true;
+    do
+        for (( i=0;i<="$(( ${#traffic_captures_l2[@]} - 1 ))";i++ ));
+	do
+	    tshark -w "${traffic_captures_l2[$i]}" -r "${general_capture}" -Y "${layer2_protocols[$i]}" 2> /dev/null
+	    pid_separate_l2=$!
+	done
+
+	sleep 3
+	
+	if [ "$kill_separator" -eq 0 ];
+	then
+	    kill $pid_separate_l2
+	    break
+	    #separator layer 2 process ID
+        fi
+    done
+}
+
+function separate_l7() {
 
     while true;
     do
 	for (( j=0;j<="$(( ${#traffic_captures[@]} - 1 ))";j++ ));
 	do
-	    condition=$(tshark -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null | wc -l)
-	    if [ "$((condition))" -gt 1 ];
+	    packets_number=$(tshark -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null | wc -l)
+	    if [ "$((packets_number))" -gt 1 ];
 	    then
 		tshark -w "${traffic_captures[$j]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$j]} && ip.addr == ${your_ip}" 2> /dev/null
-		pid_separate=$!
-		#separator process ID
+		pid_separate_l7=$!
+		#separator layer 7 process ID
 	    fi
 	done
 	
 	if [ "$kill_separator" -eq 0 ];
 	then
-	    kill $pid_separate
+	    kill $pid_separate_l7
 	    break
         fi
     done
@@ -242,6 +267,16 @@ function analyzer() {
     done
 }
 
+function create_only_l2() {
+
+    for (( i=0;i<="$(( ${#layer2_protocols[@]} - 1))";i++ ));
+    do
+	file_l2=".${layer2_protocols[$i]}.pcap"
+	traffic_captures_l2+=($file_l2)
+	touch $file_l2
+    done
+}
+
 function main() {
 
     clear
@@ -261,16 +296,23 @@ function main() {
 	    
 	    if [ "$i" -eq "$(( ${#opened_ports[@]} - 1 ))" ];
 	    then
+		create_only_l2
 		trap killer SIGINT
 		sniffer
-		separate &
+		separate_l7 &
+		separate_l2 &
 		clear
 		echo -e "${green}\n [+] Sniffing in ${net_interface} interface....${default}"
 		analyzer
 	    fi
 	done	
     else
-	echo -e "${yellow}\n [+] Warning! You dont have open ports to start attack detection, it is recommended to run the Layer 2 Attack detector instead.${default}\n"
+	echo -e "${yellow}\n [+] Warning! You dont have open ports to start attack detection, only detection of layer 2 attacks will be performed.${default}\n"
+	create_only_l2
+	sniffer
+	separate_l2 &
+	clear
+        echo -e "${green}\n [+] Sniffing in ${net_interface} interface....${default}"
     fi
 }
 
@@ -318,6 +360,7 @@ then
     fi
 else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
-    sleep 5
+    sleep 3
 fi
+
 
