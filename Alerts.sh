@@ -2,6 +2,7 @@
 
 #All alerts to be executed in case of detecting anomalies in the network
 
+ping_alert="[WARNING] ! ==> ICMP Ping Detected"
 tcp_connection_alert="[WARNING] ! ==> TCP Connection Established"
 tcp_DoS_alert="[WARNING] ! ==> Possible TCP Denial Of Service Attack"
 udp_DoS_alert="[WARNING] ! ==> Possible UDP Denial Of Service Attack"
