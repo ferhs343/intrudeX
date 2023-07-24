@@ -9,5 +9,5 @@ subdirectories=(
     'Layer_2_Attacks'
 )
 general_capture=".general.pcap"
-id_pcap=1
+id_pcap=0
 file="capture-${id_pcap}.pcap"
