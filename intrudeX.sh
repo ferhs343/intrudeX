@@ -34,7 +34,7 @@ declare -A options_attack_detection
 options_attack_detection=(
     ["Denial_of_service"]=1
     ["Web_attacks"]=2
-    ["Brute_force"]=3
+    ["Brute_Force"]=3
     ["DNS_tunneling"]=4
     ["Layer_2_attacks"]=5
     ["Back"]=6
@@ -240,37 +240,51 @@ function load_pcap() {
 
     for i in "${subdirectories[@]}"
     do
-	if [ "$value" -eq 1 ];
+	if [ "$i" == 'Denial_of_Service' ];
 	then
-	    list_files 1
-	    subdirectory=$i
+	    if [ "$value" -eq 1 ];
+	    then
+		list_files 1
+		subdirectory=$i
+	    fi
 
-	elif [ "$value" -eq 2 ];
+	elif [ "$i" == 'Web_Attacks' ];
 	then
-	    list_files 2
-	    subdirectory=$i
-
-	elif [ "$value" -eq 3 ];
+	    if [ "$value" -eq 2 ];
+	    then
+		list_files 2
+		subdirectory=$i
+	    fi
+	       
+	elif [ "$i" == 'Brute_Force' ];
 	then
-	    list_files 3
-	    subdirectory=$i
-
-	elif [ "$value" -eq 4 ];
+	    if [ "$value" -eq 3 ];
+	    then
+		list_files 3
+		subdirectory=$i
+	    fi
+		
+	elif [ "$i" == 'DNS_Tunneling' ];
 	then
-	    list_files 4
-	    subdirectory=$i
-
-	elif [ "$value" -eq 5 ];
+	    if [ "$value" -eq 4 ];
+	    then
+		list_files 4
+		subdirectory=$i
+	    fi
+	    
+	elif [ "$i" == 'Layer_2_Attacks' ];
 	then
-	    list_files 5
-	    subdirectory=$i
-
+	    if [ "$value" -eq 5 ];
+	    then
+		list_files 5
+		subdirectory=$i
+	    fi
+	    
 	elif [ "$value" -eq 6 ];
 	then
 	    list_files 6
 	    subdirectory=$i
 	fi
-	break
     done
        
     while [ "$check" -eq 0 ];
@@ -321,7 +335,7 @@ function main_menu_option_1() {
         prompt_option
         read -p "└─────► $(tput setaf 7)" suboption
 
-        if [[ "$suboption" -gt 6 || "$option" -lt 1 ]];
+        if [[ "$suboption" -gt 6 || "$suboption" -lt 1 ]];
         then
             flag2=1
         else   
