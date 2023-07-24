@@ -141,33 +141,33 @@ function pcap_saved() {
 function show_alert() {
 
     time=$(date +%H:%M:%S)
-    echo -e "\n${green} [$time]${default}"
-    if [ "$tcp_connection" == "True" ];
+    if [ "$handshake" == "True" ];
     then
-        echo -e "${red} ${tcp_connection_alert}\n ${yellow}${ip}:${impacted_port}${default}"
-	tcp_connection=False
+        echo -e "\n ${green}[$time]\n${red} ${tcp_connection_alert}\n ${yellow}${ip}:${impacted_port}${default}"
 	
     elif [ "$tcp_denial" == "True" ];
     then
-	echo -e "${red} ${tcp_DoS_alert}${default}"
-	tcp_denial=False
+	echo -e "\n ${green}[$time]\n${red} ${tcp_DoS_alert}${default}"
     fi
 }
 
 function get_subdirectory() {
 
+    id_pcap=0
+
     for subdirectory in "${subdirectories[@]}"
     do	
-	if [ "$subdirectory" == "Denial_of_Service" ];
+	if [[ "$subdirectory" == "Denial_of_Service"  && "$tcp_denial" == "True" ]];
 	then
 	    subdirectory_to_save=$subdirectory
+     	    tcp_denial=False
 	fi
+    done
 
-	while [ -f $directory/$subdirectory_to_save/$file ];
-	do
-            file="capture-${id_pcap}.pcap"
-	    id_pcap=$((id_pcap+1))
-	done
+    while [ -f $directory/$subdirectory_to_save/$file ];
+    do
+        id_pcap=$((id_pcap+1))
+    	file="capture-${id_pcap}.pcap"
     done
 }
 
@@ -196,12 +196,16 @@ function tcp_connection_alert() {
 
 	    if [[ "${array1[$k]}" == "1" && "$synack" == "True" ]];
 	    then
-	        tcp_connection=True
+	        handshake=True
 	    fi
 	done
     done
 
-    show_alert
+    if [ "$handshake" == "True" ];
+    then
+    	show_alert
+        dos_obtain_pcap
+    fi
     unset array1[*]
     unset array2[*]
 }
@@ -209,7 +213,10 @@ function tcp_connection_alert() {
 function dos_obtain_pcap() {
 
     init_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | head -n 1)
-    sleep 60
+    if [ "$tcp_denial" == "True" ];
+    then
+    	sleep 60
+    fi
     final_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | tail -n 1)
     get_subdirectory
     tshark -w "$directory/$subdirectory_to_save/$file" -r "${traffic_captures[$index]}" -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
