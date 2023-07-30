@@ -16,8 +16,7 @@ tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
 udp_ports=('53' '68' '69')
 other_protocols=('arp' 'stp' 'dtp' 'cdp' 'lldp' 'icmp')
 opened_ports=()
-l7_traffic_captures=()
-other_traffic_captures=()
+traffic_captures=()
 interfaces_list=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
 interfaces=()
 subdirectory_to_save=""
@@ -38,14 +37,13 @@ banner_grabbing=False
 function show_help() {
 
     echo -e "${yellow}\n intrudeX V 1.0.0 - By: Luis Herrera${green}"
-    echo -e "\n Usage: ./intrudex.sh [OPTION] [CONDITION]"
+    echo -e "\n Usage: ./intrudex.sh [INTERFACE] [CONDITION]"
     echo -e "\n\t -l, --list-interfaces:Show available interfaces in your system."
     echo -e "\n\t -h, --help:Show this panel."
-    echo -e "\n\t ${yellow}[OPTIONS] ${green}"
     echo -e "\n\t -i, --interface:Establish a listening interface."
     echo -e "\n\t ${yellow}[CONDITIONS] ${green}"
-    echo -e "\n\t -t, --layer7:Attack detection only in layer7."
-    echo -e "\n\t -nt, --layer2:Attack detection only in layer2.\n${default}"
+    echo -e "\n\t -t, --layer7:Attack detection in layer7."
+    echo -e "\n\t -nt, --layer2:Attack detection in layer2.\n${default}"
 }
 
 function killer() {
@@ -101,52 +99,42 @@ function sniffer() {
 
 function clean_captures() {
 
-    if [ "$l7_clean_only" == "True" ];
-    then
-	truncate --size 0 $general_capture
-	truncate --size 0 "${l7_traffic_captures[$index]}"
-	l7_clean_only=False
-	
-    elif [ "$other_clean_only" == "True" ];
-    then
-	truncate --size 0 $general_capture
-	truncate --size 0 "${other_traffic_captures[$index]}"
-	other_clean_only=False
-    fi
-    
+    truncate --size 0 $general_capture
+    truncate --size 0 "${traffic_captures[$index]}"    
     kill $pid_sniffer
     sniffer
 }
 
 function separate() {
-
+    
     while true;
     do
-	if [ "$layer7" -eq 0 ];
-	then
-	    for (( i=0;i<="$(( ${#l7_traffic_captures[@]} - 1 ))";i++ ));
-	    do
-		packets_number=$(tshark -r "${general_capture}" -Y "tcp.port == ${opened_ports[$i]} && ip.addr == ${your_ip}" 2> /dev/null | wc -l)
-		if [ "$((packets_number))" -gt 0 ];
+        for (( i=0;i<="$(( ${#traffic_captures[@]} - 1 ))";i++ ));
+	do
+	    if [ "$layer7" -eq 0 ];
+	    then
+		impacted_port="${opened_ports[$i]}"
+		if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
 		then
-		    tshark -w "${l7_traffic_captures[$i]}" -r "${general_capture}" -Y "tcp.port == ${opened_ports[$i]} && ip.addr == ${your_ip}" 2> /dev/null
-		    pid_separate=$!
+		    filter="tcp.port == ${backup_array[$i]} && ip.addr == ${your_ip}"
+		else
+		    filter="udp.port == ${backup_array[$i]} && ip.addr == ${your_ip}"
 		fi
-	    done
-	fi
 
-	if [ "$layer2" -eq 0 ];
-	then
-	    for (( i=0;i<="$(( ${#other_traffic_captures[@]} - 1 ))";i++ ));
-	    do
-		packets_number=$(tshark -r "${general_capture}" -Y "${other_protocols[$i]}" 2> /dev/null | wc -l)
-		if [ "$((packets_number))" -gt 0 ];
-		then
-	            tshark -w "${other_traffic_captures[$i]}" -r "${general_capture}" -Y "${other_protocols[$i]}" 2> /dev/null
-	            pid_separate=$!
-		fi
-	    done
-	fi
+	    elif [ "$layer2" -eq 0 ];
+	    then
+		filter="${backup_array[$i]}"
+	    fi
+	    
+	    packets_number=$(tshark -r "${general_capture}" -Y "${filter}" 2> /dev/null | wc -l)
+	    if [ "$(( packets_number ))" -gt 0 ];
+	    then
+		tshark -w "${traffic_captures[$i]}" -r "${general_capture}" -Y "${filter}" 2> /dev/null
+		pid_separate=$!
+	    else
+		sleep 5
+	    fi
+	done
 
 	if [ "$kill_separator" -eq 0 ];
 	then
@@ -185,26 +173,10 @@ function get_subdirectory() {
 
 function obtain_pcap() {
 
-    if [ "$layer7" -eq 0 ];
-    then
-	init_value=$(tshark -r "${l7_traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | head -n 1)
-	if [ "$tcp_denial" == "True" ];
-	then
-	    sleep 60
-	fi
-	final_value=$(tshark -r "${l7_traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | tail -n 1)
-	get_subdirectory
-	tshark -w "$directory/$subdirectory_to_save/$file" -r "${l7_traffic_captures[$index]}" -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
-    fi
-
-    if [ "$layer2" -eq 0 ];
-    then
-	init_value=$(tshark -r "${other_traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | head -n 1)
-	final_value=$(tshark -r "${other_traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | tail -n 1)
-	get_subdirectory
-	tshark -w "$directory/$subdirectory_to_save/$file" -r "${other_traffic_captures[$index]}" -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
-    fi
-    
+    init_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | head -n 1)
+    final_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | tail -n 1)
+    get_subdirectory
+    tshark -w "$directory/$subdirectory_to_save/$file" -r "${traffic_captures[$index]}" -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
     pcap_saved=0
     pcap_saved
 }
@@ -229,11 +201,11 @@ function show_alert() {
 
 function tcp_connection_alert() {
 
-    ip=$(tshark -r "${l7_traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "ip.src" 2> /dev/null | head -n 1)
-    srcport=$(tshark -r "${l7_traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
-    condition1_scan=$(tshark -r "${l7_traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    ip=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "ip.src" 2> /dev/null | head -n 1)
+    srcport=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
+    condition1_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array1=($condition1_scan)
-    condition2_scan=$(tshark -r "${l7_traffic_captures[$index]}" -Y "ip.src == ${your_ip} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    condition2_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${your_ip} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array2=($condition2_scan)
 		    
     for (( k=0;k<="${#array1[@]}";k++ ));
@@ -269,8 +241,8 @@ function tcp_connection_alert() {
 
 function tcp_dos_alert() {
 
-    condition1_DoS=$(tshark -r "${l7_traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
-    condition2_DoS=$(tshark -r "${l7_traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
+    condition1_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
+    condition2_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
 		
     if [[ "$condition1_DoS" -gt 100 || "$condition2_DoS" -gt 100 ]];
     then
@@ -283,9 +255,9 @@ function tcp_dos_alert() {
 function ping_alert() {
 
     count_ping=0
-    condition1_ping=$(tshark -r "${other_traffic_captures[$index]}" -Y "icmp.type == 8" -T fields -e "icmp.seq" 2> /dev/null)
+    condition1_ping=$(tshark -r "${traffic_captures[$index]}" -Y "icmp.type == 8" -T fields -e "icmp.seq" 2> /dev/null)
     array1=($condition1_ping)
-    condition2_ping=$(tshark -r "${other_traffic_captures[$index]}" -Y "icmp.type == 0" -T fields -e "icmp.seq" 2> /dev/null)
+    condition2_ping=$(tshark -r "${traffic_captures[$index]}" -Y "icmp.type == 0" -T fields -e "icmp.seq" 2> /dev/null)
     array2=($condition2_ping)
 
     for (( i=0;i<="$(( ${#array1[@]} - 1 ))";i++ ));
@@ -326,7 +298,7 @@ function l7_start_attack_detection() {
     fi 
 }
 
-function other_start_attack_detection() {
+function l2_start_attack_detection() {
 
     if [ "$protocol" == 'icmp' ];
     then
@@ -335,39 +307,26 @@ function other_start_attack_detection() {
 }
 
 function analyzer() {
-
+    
     while true;
     do
-	if [ "$layer7" -eq 0 ];
-	then
-	    for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
-	    do
-		validate=$(tshark -r "${l7_traffic_captures[$i]}" 2> /dev/null | wc -l)
-		if [ "$validate" -gt 0 ];
-		then
-		    index=$i
-	            impacted_port="${opened_ports[$i]}"
-	            l7_start_attack_detection
-		    l7_clean_only=True
-		    clean_captures
-		fi
-	    done
-	fi
-
-	if [ "$layer2" -eq 0 ];
-	then
-	    for (( i=0;i<="$(( ${#other_protocols[@]} - 1 ))";i++ ));
-	    do
-		validate=$(tshark -r "${other_traffic_captures[$i]}" 2> /dev/null | wc -l)
-		if [ "$validate" -gt 0 ];
-		then
-		    index=$i
-		    protocol="${other_protocols[$i]}"
-		    other_start_attack_detection
-		    other_clean_only=True
-		fi
-	    done
-	fi
+	for (( i=0;i<="$(( ${#backup_array[@]} - 1 ))";i++ ));
+        do
+	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
+	    index=$i
+	    if [[ "$validate" -gt 0 && "$layer7" -eq 0 ]];
+	    then
+	        impacted_port="${backup_array[$i]}"
+                l7_start_attack_detection
+                clean_captures
+		    
+	    elif [[ "$validate" -gt 0 && "$layer2" -eq 0 ]];
+	    then
+	        protocol="${backup_array[$i]}"
+	        l2_start_attack_detection
+	        clean_captures
+	    fi
+	done
 
 	sleep 5
     done
@@ -375,27 +334,15 @@ function analyzer() {
 
 function generate_files() {
 
-    if [ "$layer7" -eq 0 ];
-    then
-	for (( i=0;i<="$(( ${#opened_ports[@]} - 1 ))";i++ ));
-	do
-	    element="${opened_ports[$i]}"
-	    file_element=".${element}.pcap"
-            l7_traffic_captures+=($file_element)
-	    touch "${l7_traffic_captures[$i]}"
-	done
-    fi
+    local_array=("$@")
 
-    if [ "$layer2" -eq 0 ];
-    then
-	for (( i=0;i<="$(( ${#other_protocols[@]} - 1 ))";i++ ));
-	do
-	    element="${other_protocols[$i]}"
-	    file_element=".${element}.pcap"
-            other_traffic_captures+=($file_element)
-	    touch "${other_traffic_captures[$i]}"
-	done
-    fi
+    for (( i=0;i<="$(( ${#local_array[@]} - 1 ))";i++ ));
+    do
+	element="${local_array[$i]}"
+	file_element=".${element}.pcap"
+        traffic_captures+=($file_element)
+        touch "${traffic_captures[$i]}"
+    done
 }
 
 function main() {
@@ -411,22 +358,22 @@ function main() {
 	then
 	    layer7=1
 	    layer2=0
-	fi
-
-    elif [[ "$layer7" -eq 0 && "$layer2" -eq 0 ]];
-    then
-	if [ "${#opened_ports[@]}" -lt 1 ];
-	then
-	    layer7=1
+	else
+	    your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
 	fi
     fi
 
     if [ "$layer7" -eq 0 ];
     then
-	your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
+	generate_files "${opened_ports[@]}"
+	backup_array=("${opened_ports[@]}")
+	
+    elif [ "$layer2" -eq 0 ];
+    then
+	generate_files "${other_protocols[@]}"
+	backup_array=("${other_protocols[@]}")
     fi
 
-    generate_files
     trap killer SIGINT
     sniffer
     separate &
@@ -475,10 +422,9 @@ then
 	then
 	    layer2=0
 
-	elif [ "$arg2" == "" ]
-	then
-	    layer7=0
-	    layer2=0
+	else
+	    show_help
+	    exit
 	fi
 
 	if [ "$start" -eq 0 ];
@@ -496,6 +442,7 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 3
 fi
+
 
 
 
