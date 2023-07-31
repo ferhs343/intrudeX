@@ -37,13 +37,16 @@ banner_grabbing=False
 function show_help() {
 
     echo -e "${yellow}\n intrudeX V 1.0.0 - By: Luis Herrera${green}"
-    echo -e "\n Usage: ./intrudex.sh [INTERFACE] [CONDITION]"
-    echo -e "\n\t -l, --list-interfaces:Show available interfaces in your system."
+    echo -e "\n Usage: ./intrudex.sh [INTERFACE] [CONDITION] [IP-VERSION]"
     echo -e "\n\t -h, --help:Show this panel."
+    echo -e "\n\t -l, --list-interfaces:Show available interfaces in your system."
     echo -e "\n\t -i, --interface:Establish a listening interface."
     echo -e "\n\t ${yellow}[CONDITIONS] ${green}"
     echo -e "\n\t -t, --layer7:Attack detection in layer7."
-    echo -e "\n\t -nt, --layer2:Attack detection in layer2.\n${default}"
+    echo -e "\n\t -nt, --layer2:Attack detection in layer2."
+    echo -e "\n\t ${yellow}[IP-VERSIONS] ${green}"
+    echo -e "\n\t -6, --ipv6:Attack detection using IPv6."
+    echo -e "\n\t -4, --ipv4:Attack detection using IPv4.\n${default}"
 }
 
 function killer() {
@@ -106,7 +109,7 @@ function clean_captures() {
 }
 
 function separate() {
-    
+
     while true;
     do
         for (( i=0;i<="$(( ${#traffic_captures[@]} - 1 ))";i++ ));
@@ -135,7 +138,7 @@ function separate() {
 		sleep 5
 	    fi
 	done
-
+	
 	if [ "$kill_separator" -eq 0 ];
 	then
 	    kill $pid_separate
@@ -284,11 +287,6 @@ function ping_alert() {
 
 
 
-
-
-
-
-
 function l7_start_attack_detection() {
 
     if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
@@ -314,6 +312,7 @@ function analyzer() {
         do
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
 	    index=$i
+	    
 	    if [[ "$validate" -gt 0 && "$layer7" -eq 0 ]];
 	    then
 	        impacted_port="${backup_array[$i]}"
@@ -324,7 +323,6 @@ function analyzer() {
 	    then
 	        protocol="${backup_array[$i]}"
 	        l2_start_attack_detection
-	        clean_captures
 	    fi
 	done
 
@@ -442,7 +440,5 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 3
 fi
-
-
 
 
