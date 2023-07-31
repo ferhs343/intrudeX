@@ -37,16 +37,17 @@ banner_grabbing=False
 function show_help() {
 
     echo -e "${yellow}\n intrudeX V 1.0.0 - By: Luis Herrera${green}"
-    echo -e "\n Usage: ./intrudex.sh [INTERFACE] [CONDITION] [IP-VERSION]"
-    echo -e "\n\t -h, --help:Show this panel."
-    echo -e "\n\t -l, --list-interfaces:Show available interfaces in your system."
-    echo -e "\n\t -i, --interface:Establish a listening interface."
-    echo -e "\n\t ${yellow}[CONDITIONS] ${green}"
-    echo -e "\n\t -t, --layer7:Attack detection in layer7."
-    echo -e "\n\t -nt, --layer2:Attack detection in layer2."
-    echo -e "\n\t ${yellow}[IP-VERSIONS] ${green}"
-    echo -e "\n\t -6, --ipv6:Attack detection using IPv6."
-    echo -e "\n\t -4, --ipv4:Attack detection using IPv4.\n${default}"
+    echo -e "\n Usage: ./intrudex.sh [INTERFACE] [LAYER] [IP_FORMAT]"
+    echo -e "\n\t -h, --help: Show this panel."
+    echo -e "\n\t -l, --list-interfaces: Show available interfaces in your system."
+    echo -e "\n\t -i, --interface: Establish a listening interface."
+    echo -e "\n\t ${yellow}[LAYER OPTIONS] ${green}"
+    echo -e "\n\t -7, --layer7: Sniff in layer 7."
+    echo -e "\n\t -3, --layer3: Sniff in layer 3."
+    echo -e "\n\t -2, --layer2: Sniff in layer 2."
+    echo -e "\n\t ${yellow}[IP OPTIONS] ${green}"
+    echo -e "\n\t -6, --ipv6: Use IPv6"
+    echo -e "\n\t -4, --ipv4: Use IPv4.\n${default}"
 }
 
 function killer() {
@@ -112,6 +113,7 @@ function separate() {
 
     while true;
     do
+	count=0
         for (( i=0;i<="$(( ${#traffic_captures[@]} - 1 ))";i++ ));
 	do
 	    if [ "$layer7" -eq 0 ];
@@ -135,7 +137,11 @@ function separate() {
 		tshark -w "${traffic_captures[$i]}" -r "${general_capture}" -Y "${filter}" 2> /dev/null
 		pid_separate=$!
 	    else
-		sleep 5
+		count=$((count+1))
+	        if [ "$count" -eq "$(( ${#traffic_captures[@]} - 1 ))" ];
+	        then
+		    sleep 5
+		fi
 	    fi
 	done
 	
@@ -200,6 +206,8 @@ function show_alert() {
     then
 	echo -e "\n${green} [$time]\n${red} ${ping_alert}${default}"
     fi
+
+    count_alert=$((count_alert+1))
 }
 
 function tcp_connection_alert() {
@@ -291,8 +299,8 @@ function l7_start_attack_detection() {
 
     if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
     then
-	tcp_connection_alert
         tcp_dos_alert
+	tcp_connection_alert
     fi 
 }
 
@@ -382,8 +390,10 @@ function main() {
 
 arg=$1
 arg2=$3
+arg3=$4
 if [ "$(id -u)" == "0" ];
 then
+    check=0
     if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
     then
 	show_help
@@ -407,7 +417,7 @@ then
 	do
 	    if [ "$net_interface" == "${interfaces[$i]}" ];
 	    then
-		start=0
+		check=$((check+1))
 		break
 	    fi
 	done
@@ -415,16 +425,14 @@ then
 	if [ "$arg2" == "--layer7" ] || [ "$arg2" == "-t" ]
         then
 	    layer7=0
+	    check=$((check+1))
 
 	elif [ "$arg2" == "--layer2" ] || [ "$arg2" == "-nt" ]
 	then
 	    layer2=0
-
-	else
-	    show_help
-	    exit
+	    check=$((check+1))
 	fi
-
+	
 	if [ "$start" -eq 0 ];
 	then
 	    main
@@ -440,5 +448,7 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 3
 fi
+
+
 
 
