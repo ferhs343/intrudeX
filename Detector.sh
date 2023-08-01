@@ -252,14 +252,16 @@ function tcp_connection_alert() {
 
 function tcp_dos_alert() {
 
-    condition1_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null | sort | uniq | wc -l)
-    condition2_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
+    condition_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
 		
-    if [[ "$condition1_DoS" -gt 100 || "$condition2_DoS" -gt 100 ]];
+    if [ "$condition_DoS" -gt 1000 ];
     then
 	tcp_denial=True
 	show_alert
 	obtain_pcap
+	killer
+	killall bash
+	exit
     fi
 }
 
@@ -301,7 +303,7 @@ function l7_start_attack_detection() {
     then
         tcp_dos_alert
 	tcp_connection_alert
-    fi 
+    fi
 }
 
 function l2_start_attack_detection() {
@@ -417,7 +419,7 @@ then
 	do
 	    if [ "$net_interface" == "${interfaces[$i]}" ];
 	    then
-		check=$((check+1))
+		start=0
 		break
 	    fi
 	done
@@ -425,12 +427,10 @@ then
 	if [ "$arg2" == "--layer7" ] || [ "$arg2" == "-t" ]
         then
 	    layer7=0
-	    check=$((check+1))
 
 	elif [ "$arg2" == "--layer2" ] || [ "$arg2" == "-nt" ]
 	then
 	    layer2=0
-	    check=$((check+1))
 	fi
 	
 	if [ "$start" -eq 0 ];
@@ -448,7 +448,3 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 3
 fi
-
-
-
-
