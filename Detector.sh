@@ -13,7 +13,7 @@ source Alerts.sh
 source Colors.sh
 
 tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
-udp_ports=('53' '68' '69')
+udp_ports=('53' '68' '69' '546')
 other_protocols=('arp' 'stp' 'dtp' 'cdp' 'lldp' 'icmp')
 opened_ports=()
 traffic_captures=()
@@ -26,10 +26,10 @@ pid_separate=""
 pid_sniffer=""
 
 #flags
+layer2=1
+layer7=1
 kill_separator=1
 pcap_saved=1
-layer7=1
-layer2=1
 handshake=False
 tcp_denial=False
 banner_grabbing=False
@@ -43,7 +43,6 @@ function show_help() {
     echo -e "\n\t -i, --interface: Establish a listening interface."
     echo -e "\n\t ${yellow}[LAYER OPTIONS] ${green}"
     echo -e "\n\t -7, --layer7: Sniff in layer 7."
-    echo -e "\n\t -3, --layer3: Sniff in layer 3."
     echo -e "\n\t -2, --layer2: Sniff in layer 2."
     echo -e "\n\t ${yellow}[IP OPTIONS] ${green}"
     echo -e "\n\t -6, --ipv6: Use IPv6"
@@ -110,7 +109,7 @@ function clean_captures() {
 }
 
 function separate() {
-
+    
     while true;
     do
 	count=0
@@ -121,9 +120,9 @@ function separate() {
 		impacted_port="${opened_ports[$i]}"
 		if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
 		then
-		    filter="tcp.port == ${backup_array[$i]} && ip.addr == ${your_ip}"
+		    filter="tcp.port == ${backup_array[$i]} && ${filter_ip}"
 		else
-		    filter="udp.port == ${backup_array[$i]} && ip.addr == ${your_ip}"
+		    filter="udp.port == ${backup_array[$i]} && ${filter_ip}"
 		fi
 
 	    elif [ "$layer2" -eq 0 ];
@@ -211,12 +210,12 @@ function show_alert() {
 }
 
 function tcp_connection_alert() {
-
+    
     ip=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "ip.src" 2> /dev/null | head -n 1)
     srcport=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
     condition1_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array1=($condition1_scan)
-    condition2_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${your_ip} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    condition2_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${your_ipv4} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array2=($condition2_scan)
 		    
     for (( k=0;k<="${#array1[@]}";k++ ));
@@ -259,9 +258,6 @@ function tcp_dos_alert() {
 	tcp_denial=True
 	show_alert
 	obtain_pcap
-	killer
-	killall bash
-	exit
     fi
 }
 
@@ -349,6 +345,16 @@ function generate_files() {
 	element="${local_array[$i]}"
 	file_element=".${element}.pcap"
         traffic_captures+=($file_element)
+	
+	if [ "${local_array[$i]}" == '546' ];
+	then
+	    dhcpv6=0
+	fi
+
+	if [[ "$dhcpv6" -eq 0 && "$i" -eq "$(( ${#local_array[@]} - 1 ))" && "ipv6" -eq 0 ]];
+	then
+	    traffic_captures+=('icmpv6')
+	fi
         touch "${traffic_captures[$i]}"
     done
 }
@@ -360,14 +366,23 @@ function main() {
     port_scanner
     sleep 5
 
-    if [[ "$layer7" -eq 0 && "$layer2" -eq 1 ]];
+    if [ "$layer7" -eq 0 ];
     then
-	if [ "${#opened_ports[@]}" -lt 1 ];
+	if [ "${#opened_ports[@]}" -gt 1 ];
 	then
+	    if [ "$ipv6" -eq 0 ];
+	    then
+		your_ipv6=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
+		filter_ip="ipv6.addr == ${your_ipv6}"
+		
+	    elif [ "$ipv4" -eq 0 ];
+	    then
+		your_ipv4=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
+		filter_ip="ip.addr == ${your_ipv4}"
+	    fi
+	else
 	    layer7=1
 	    layer2=0
-	else
-	    your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
 	fi
     fi
 
@@ -412,32 +427,46 @@ then
 
     elif [ "$arg" == "--interface" ] || [ "$arg" == "-i" ]
     then
-	start=1
+	start_l7=0
+	start_l2=0
         net_interface=$2
         interfaces=($interfaces_list)
 	for (( i=0;i<="$(( ${#interfaces[@]} - 1 ))";i++ ));
 	do
 	    if [ "$net_interface" == "${interfaces[$i]}" ];
 	    then
-		start=0
 		break
+	    else
+		echo -e "${red}\n ERROR, the specified interface is not correct.\n${default}"
 	    fi
 	done
 
-	if [ "$arg2" == "--layer7" ] || [ "$arg2" == "-t" ]
+	if [ "$arg2" == "--layer7" ] || [ "$arg2" == "-7" ]
         then
+	    start_l7=$((start_l7+1))
 	    layer7=0
+	    if [ "$arg3" == "-6" ] || [ "$arg3" == "--ipv6" ]
+	    then
+		start_l7=$((start_l7+1))
+		ipv6=0
+		
+	    elif [ "$arg3" == "-4" ] || [ "$arg3" == "--ipv4" ]
+	    then
+		start_l7=$((start_l7+1))
+		ipv4=0
+	    fi
 
-	elif [ "$arg2" == "--layer2" ] || [ "$arg2" == "-nt" ]
+	elif [ "$arg2" == "--layer2" ] || [ "$arg2" == "-2" ]
 	then
+	    start_l2=$((start_l2+1))
 	    layer2=0
 	fi
-	
-	if [ "$start" -eq 0 ];
+
+	if [[ "$start_l7" -eq 2 || "$start_l2" -eq 1 ]];
 	then
 	    main
 	else
-	    echo -e "${red}\n ERROR, The especified interface is not correct, try again.\n${default}"
+	    echo -e "${red}\n ERROR, any of the specified arguments are not valid.\n${default}"
 	    sleep 2
 	fi
     else
