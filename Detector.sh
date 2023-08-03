@@ -372,15 +372,15 @@ function main() {
 	then
 	    if [ "$ipv6" -eq 0 ];
 	    then
-		your_ipv6=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
-		filter_ip="ipv6.addr == ${your_ipv6}"
+		your_ip=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
+		filter_ip="ipv6.addr == ${your_ip}"
   		#other filters
 		filter_ip2="ipv6.src"
 		
 	    elif [ "$ipv4" -eq 0 ];
 	    then
-		your_ipv4=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
-		filter_ip="ip.addr == ${your_ipv4}"
+		your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
+		filter_ip="ip.addr == ${your_ip}"
   	        #other filters
 		filter_ip2="ip.src"
 	    fi
@@ -481,3 +481,4 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 3
 fi
+
