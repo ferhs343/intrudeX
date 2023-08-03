@@ -211,11 +211,11 @@ function show_alert() {
 
 function tcp_connection_alert() {
     
-    ip=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "ip.src" 2> /dev/null | head -n 1)
-    srcport=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
-    condition1_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${ip} && tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    ip=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "${filter_ip2}" 2> /dev/null | head -n 1)
+    srcport=$(tshark -r "${traffic_captures[$index]}" -Y "${filter_ip2} == ${ip} && tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
+    condition1_scan=$(tshark -r "${traffic_captures[$index]}" -Y "${filter_ip2} == ${ip} && tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array1=($condition1_scan)
-    condition2_scan=$(tshark -r "${traffic_captures[$index]}" -Y "ip.src == ${your_ipv4} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    condition2_scan=$(tshark -r "${traffic_captures[$index]}" -Y "${filter_ip2} == ${your_ip} && tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     array2=($condition2_scan)
 		    
     for (( k=0;k<="${#array1[@]}";k++ ));
@@ -253,7 +253,7 @@ function tcp_dos_alert() {
 
     condition_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
 		
-    if [ "$condition_DoS" -gt 1000 ];
+    if [ "$condition_DoS" -gt 3000 ];
     then
 	tcp_denial=True
 	show_alert
@@ -374,11 +374,15 @@ function main() {
 	    then
 		your_ipv6=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
 		filter_ip="ipv6.addr == ${your_ipv6}"
+  		#other filters
+		filter_ip2="ipv6.src"
 		
 	    elif [ "$ipv4" -eq 0 ];
 	    then
 		your_ipv4=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
 		filter_ip="ip.addr == ${your_ipv4}"
+  	        #other filters
+		filter_ip2="ip.src"
 	    fi
 	else
 	    layer7=1
