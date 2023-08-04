@@ -14,7 +14,7 @@ source Colors.sh
 
 tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
 udp_ports=('53' '68' '69' '546')
-other_protocols=('arp' 'stp' 'dtp' 'cdp' 'lldp' 'icmp')
+other_protocols=('arp' 'stp' 'dtp' 'cdp' 'lldp')
 opened_ports=()
 traffic_captures=()
 interfaces_list=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
@@ -28,6 +28,8 @@ pid_sniffer=""
 #flags
 layer2=1
 layer7=1
+ipv4=1
+ipv6=1
 kill_separator=1
 pcap_saved=1
 handshake=False
@@ -117,14 +119,34 @@ function separate() {
 	do
 	    if [ "$layer7" -eq 0 ];
 	    then
-		impacted_port="${opened_ports[$i]}"
-		if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+		if [ "$i" -le "$((n_elements - 1))" ];
 		then
-		    filter="tcp.port == ${backup_array[$i]} && ${filter_ip}"
-		else
-		    filter="udp.port == ${backup_array[$i]} && ${filter_ip}"
+	            impacted_port="${opened_ports[$i]}"
+		   
+		    if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+		    then
+			filter="tcp.port == ${backup_array[$i]} && ${filter_ip}"
+		    else
+			filter="udp.port == ${backup_array[$i]} && ${filter_ip}"
+		    fi
 		fi
 
+		if [ "$i" -gt "$((n_elements - 1))" ];
+		then
+		    if [ "${traffic_captures[$i]}" == '.arp.pcap' ];
+		    then
+			filter="arp.opcode == 1 && arp.dst.proto_ipv4 == ${your_ip}"
+
+		    elif [ "${traffic_captures[$i]}" == '.icmp.pcap' ];
+		    then
+			filter="icmp && ip.addr == ${your_ip}"
+			
+		    elif [ "${traffic_captures[$i]}" == '.icmpv6.pcap' ];
+		    then
+			filter="icmpv6"
+		    fi
+		fi
+		
 	    elif [ "$layer2" -eq 0 ];
 	    then
 		filter="${backup_array[$i]}"
@@ -284,6 +306,7 @@ function ping_alert() {
     then
 	ping=True
 	show_alert
+	obtain_pcap
     fi
     
     unset array1[*]
@@ -304,10 +327,7 @@ function l7_start_attack_detection() {
 
 function l2_start_attack_detection() {
 
-    if [ "$protocol" == 'icmp' ];
-    then
-	ping_alert
-    fi
+    continue
 }
 
 function analyzer() {
@@ -339,22 +359,25 @@ function analyzer() {
 function generate_files() {
 
     local_array=("$@")
+    n_elements="${#local_array[@]}"
+
+    if [ "$layer7" -eq 0 ];
+    then
+	if [ "$ipv6" -eq 0 ];
+	then
+	    local_array+=('icmpv6')
+	    
+	elif [ "$ipv4" -eq 0 ];
+	then
+	    local_array+=('arp' 'icmp')
+	fi
+    fi
 
     for (( i=0;i<="$(( ${#local_array[@]} - 1 ))";i++ ));
     do
 	element="${local_array[$i]}"
 	file_element=".${element}.pcap"
         traffic_captures+=($file_element)
-	
-	if [ "${local_array[$i]}" == '546' ];
-	then
-	    dhcpv6=0
-	fi
-
-	if [[ "$dhcpv6" -eq 0 && "$i" -eq "$(( ${#local_array[@]} - 1 ))" && "ipv6" -eq 0 ]];
-	then
-	    traffic_captures+=('icmpv6')
-	fi
         touch "${traffic_captures[$i]}"
     done
 }
@@ -385,10 +408,13 @@ function main() {
 		filter_ip2="ip.src"
 	    fi
 	else
+	    no_ports=$(echo "${yellow}\n [+] Warning, you dont have opened ports, starting layer 2 detection.....")
 	    layer7=1
 	    layer2=0
 	fi
     fi
+
+    your_mac=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
 
     if [ "$layer7" -eq 0 ];
     then
@@ -405,6 +431,7 @@ function main() {
     sniffer
     separate &
     clear
+    echo "${no_ports}"
     echo -e "${green}\n [+] Sniffing in ${net_interface} interface....${default}"
     analyzer
 }
@@ -481,4 +508,5 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 3
 fi
+
 
