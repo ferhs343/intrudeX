@@ -2,7 +2,7 @@
 
 # intrudeX
 # --------
-# Herramienta enfocada a la detección de intrusos en tu host local.
+# Herramienta enfocada a la detección de intrusos en tu host local, mediante el monitoreo .
 #    - Detección de ataques a nivel de capa de aplicación, así como a nivel de capa 2
 #    - Detección de tecnicas de reconocimiento
 #    - Así mismo, intrudeX cuenta con utilidades para la ejecución de Threat Intellingece
@@ -12,29 +12,36 @@ source Files.sh
 source Alerts.sh
 source Colors.sh
 
-tcp_ports=('21' '22' '25' '80' '443' '445' '1433' '3389')
+#tcp/udp ports analyzed by intrudeX
+tcp_ports=('21' '22' '23' '25' '80' '139' '443' '445' '1433' '3306' '3389')
 udp_ports=('53' '68' '69' '546')
-other_protocols=('arp' 'stp' 'dtp' 'cdp' 'lldp')
 opened_ports=()
+#layer2/3 protocols analyzed by intrudex
+l2_protocols=('arp' 'stp' 'dtp' 'cdp' 'lldp')
+auxiliar_protocols=('arp' 'icmp' 'icmpv6')
+
+to_analyze=()
 traffic_captures=()
 interfaces_list=$(ifconfig | awk '{print $1}' | grep ':' | tr -d ':')
 interfaces=()
 subdirectory_to_save=""
-
 #processes ID's
 pid_separate=""
 pid_sniffer=""
-
 #flags
 layer2=1
 layer7=1
 ipv4=1
 ipv6=1
 kill_separator=1
-pcap_saved=1
 handshake=False
 tcp_denial=False
 banner_grabbing=False
+ping=False
+#terminal arguments
+arg=$1
+arg2=$3
+arg3=$4
 
 function show_help() {
 
@@ -43,7 +50,7 @@ function show_help() {
     echo -e "\n\t -h, --help: Show this panel."
     echo -e "\n\t -l, --list-interfaces: Show available interfaces in your system."
     echo -e "\n\t -i, --interface: Establish a listening interface."
-    echo -e "\n\t ${yellow}[LAYER OPTIONS] ${green}"
+    echo -e "\n\t ${yellow}[LAYERS] ${green}"
     echo -e "\n\t -7, --layer7: Sniff in layer 7."
     echo -e "\n\t -2, --layer2: Sniff in layer 2."
     echo -e "\n\t ${yellow}[IP OPTIONS] ${green}"
@@ -87,12 +94,12 @@ function port_scanner() {
     done
 }
 
-function pcap_saved() {
+function clean_captures() {
 
-    if [ "$pcap_saved" -eq 0 ];
-    then
-	echo -e "${yellow} Pcap file saved in ==> $directory/$subdirectory_to_save/$file ${default}"
-    fi
+    truncate --size 0 $general_capture
+    truncate --size 0 "${traffic_captures[$index]}"    
+    kill $pid_sniffer
+    sniffer
 }
 
 function sniffer() {
@@ -100,14 +107,6 @@ function sniffer() {
     tshark -w "${general_capture}" -i $net_interface 2> /dev/null &
     pid_sniffer=$!
     #principal sniffer process ID
-}
-
-function clean_captures() {
-
-    truncate --size 0 $general_capture
-    truncate --size 0 "${traffic_captures[$index]}"    
-    kill $pid_sniffer
-    sniffer
 }
 
 function separate() {
@@ -119,31 +118,28 @@ function separate() {
 	do
 	    if [ "$layer7" -eq 0 ];
 	    then
-		if [ "$i" -le "$((n_elements - 1))" ];
+		if [ "$i" -gt "$((n_elements - 1))" ];
 		then
-	            impacted_port="${opened_ports[$i]}"
+	            port="${to_analyze[$i]}"
 		   
-		    if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+		    if [[ "$port" != '53' && "$port" != '68' && "$port" != '69' ]];
 		    then
-			filter="tcp.port == ${backup_array[$i]} && ${filter_ip}"
+			filter="tcp.port == ${to_analyze[$i]} && ${filter_ip}"
 		    else
-			filter="udp.port == ${backup_array[$i]} && ${filter_ip}"
+			filter="udp.port == ${to_analyze[$i]} && ${filter_ip}"
 		    fi
 		fi
 
-		if [ "$i" -gt "$((n_elements - 1))" ];
+		if [ "$i" -le "$((n_elements - 1))" ];
 		then
-		    if [ "${traffic_captures[$i]}" == '.arp.pcap' ];
+		    protocol="${to_analyze[$i]}"
+		    if [ "$protocol" == 'arp' ];
 		    then
 			filter="arp.opcode == 1 && arp.dst.proto_ipv4 == ${your_ip}"
-
-		    elif [ "${traffic_captures[$i]}" == '.icmp.pcap' ];
-		    then
-			filter="icmp && ip.addr == ${your_ip}"
 			
-		    elif [ "${traffic_captures[$i]}" == '.icmpv6.pcap' ];
+		    elif [[ "$protocol" == 'icmp' || "$protocol" == 'icmpv6' ]];
 		    then
-			filter="icmpv6"
+			filter="${protocol}"
 		    fi
 		fi
 		
@@ -207,8 +203,7 @@ function obtain_pcap() {
     final_value=$(tshark -r "${traffic_captures[$index]}" 2> /dev/null | awk '{print $1}' | tail -n 1)
     get_subdirectory
     tshark -w "$directory/$subdirectory_to_save/$file" -r "${traffic_captures[$index]}" -Y "frame.number >= ${init_value} && frame.number <= ${final_value}" 2> /dev/null
-    pcap_saved=0
-    pcap_saved
+    echo -e "${yellow} Pcap file saved in ==> $directory/$subdirectory_to_save/$file ${default}"
 }
 
 function show_alert() {
@@ -226,9 +221,22 @@ function show_alert() {
     elif [ "$ping" == "True" ];
     then
 	echo -e "\n${green} [$time]\n${red} ${ping_alert}${default}"
+	ping=False
     fi
 
     count_alert=$((count_alert+1))
+}
+
+function tcp_dos_alert() {
+
+    condition_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
+		
+    if [ "$condition_DoS" -gt 3000 ];
+    then
+	tcp_denial=True
+	show_alert
+	obtain_pcap
+    fi
 }
 
 function tcp_connection_alert() {
@@ -271,18 +279,6 @@ function tcp_connection_alert() {
     unset array2[*]
 }
 
-function tcp_dos_alert() {
-
-    condition_DoS=$(tshark -r "${traffic_captures[$index]}" -Y "tcp" -T fields -e "tcp.flags" 2> /dev/null | wc -l)
-		
-    if [ "$condition_DoS" -gt 3000 ];
-    then
-	tcp_denial=True
-	show_alert
-	obtain_pcap
-    fi
-}
-
 function ping_alert() {
 
     count_ping=0
@@ -306,7 +302,6 @@ function ping_alert() {
     then
 	ping=True
 	show_alert
-	obtain_pcap
     fi
     
     unset array1[*]
@@ -315,39 +310,53 @@ function ping_alert() {
 
 
 
-
 function l7_start_attack_detection() {
 
-    if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+    if [ "$index" -le "$((n_elements - 1))" ];
     then
-        tcp_dos_alert
-	tcp_connection_alert
+	if [ "$protocol" == 'icmp' ];
+	then
+	    ping_alert
+	fi
+    fi
+    
+    if [ "$index" -gt "$((n_elements - 1))" ];
+    then
+	if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+	then
+            tcp_dos_alert
+	    tcp_connection_alert
+	fi
     fi
 }
 
-function l2_start_attack_detection() {
-
-    continue
-}
-
 function analyzer() {
-    
+
     while true;
     do
-	for (( i=0;i<="$(( ${#backup_array[@]} - 1 ))";i++ ));
+	for (( i=0;i<="$(( ${#to_analyze[@]} - 1 ))";i++ ));
         do
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
 	    index=$i
 	    
 	    if [[ "$validate" -gt 0 && "$layer7" -eq 0 ]];
 	    then
-	        impacted_port="${backup_array[$i]}"
-                l7_start_attack_detection
-                clean_captures
+		if [ "$i" -le "$((n_elements - 1))" ];
+		then
+		    protocol="${to_analyze[$i]}"
+		    l7_start_attack_detection
+		    clean_captures
 		    
+		elif [ "$i" -gt "$((n_elements - 1))" ];
+		then
+	            impacted_port="${to_analyze[$i]}"
+		    l7_start_attack_detection
+		    clean_captures
+		fi
+		
 	    elif [[ "$validate" -gt 0 && "$layer2" -eq 0 ]];
 	    then
-	        protocol="${backup_array[$i]}"
+	        protocol="${to_analyze[$i]}"
 	        l2_start_attack_detection
 	    fi
 	done
@@ -359,19 +368,6 @@ function analyzer() {
 function generate_files() {
 
     local_array=("$@")
-    n_elements="${#local_array[@]}"
-
-    if [ "$layer7" -eq 0 ];
-    then
-	if [ "$ipv6" -eq 0 ];
-	then
-	    local_array+=('icmpv6')
-	    
-	elif [ "$ipv4" -eq 0 ];
-	then
-	    local_array+=('arp' 'icmp')
-	fi
-    fi
 
     for (( i=0;i<="$(( ${#local_array[@]} - 1 ))";i++ ));
     do
@@ -386,15 +382,23 @@ function main() {
 
     clear
     echo -e "${green}\n Loading....${default}"
-    port_scanner
-    sleep 5
-
+    
     if [ "$layer7" -eq 0 ];
     then
-	if [ "${#opened_ports[@]}" -gt 1 ];
+	port_scanner
+	sleep 5
+	if [ "${#opened_ports[@]}" -gt 0 ];
 	then
 	    if [ "$ipv6" -eq 0 ];
 	    then
+		for (( i=0;i<="$(( ${#auxiliar_protocols[@]} - 1 ))";i++ ));
+		do
+		    if [ "${auxiliar_protocols[$i]}" == 'icmpv6' ];
+		    then
+			to_analyze+=("${auxiliar_protocols[$i]}")
+		    fi
+		done
+		
 		your_ip=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
 		filter_ip="ipv6.addr == ${your_ip}"
   		#other filters
@@ -402,47 +406,55 @@ function main() {
 		
 	    elif [ "$ipv4" -eq 0 ];
 	    then
+		for (( i=0;i<="$(( ${#auxiliar_protocols[@]} - 1))";i++ ));
+		do
+		    if [[ "${auxiliar_protocols[$i]}" == 'icmp' || "${auxiliar_protocols[$i]}" == 'arp' ]];
+		    then
+			to_analyze+=("${auxiliar_protocols[$i]}")
+		    fi
+		done
+		
 		your_ip=$(ifconfig $net_interface | grep 'inet ' | awk '{print $2}')
 		filter_ip="ip.addr == ${your_ip}"
   	        #other filters
 		filter_ip2="ip.src"
 	    fi
-	else
-	    no_ports=$(echo "${yellow}\n [+] Warning, you dont have opened ports, starting layer 2 detection.....")
+	    n_elements="${#to_analyze[@]}"
+	    to_analyze+=("${opened_ports[@]}")
+        else
+	    no_ports="echo '${yellow}\n [+] Warning, you dont have opened ports, starting layer 2 detection....."
             sleep 5
 	    layer7=1
 	    layer2=0
 	fi
     fi
 
-    your_mac=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
-
-    if [ "$layer7" -eq 0 ];
+    if [ "$layer2" -eq 0 ];
     then
-	generate_files "${opened_ports[@]}"
-	backup_array=("${opened_ports[@]}")
-	
-    elif [ "$layer2" -eq 0 ];
-    then
-	generate_files "${other_protocols[@]}"
-	backup_array=("${other_protocols[@]}")
+	for (( i=0;i<="$(( ${#auxiliar_protocols[@]} - 1 ))";i++ ));
+        do
+	    if [ "${auxiliar_protocols[$i]}" == 'icmpv6' ];
+	    then
+	        to_analyze+=("${auxiliar_protocols[$i]}")
+            fi
+	done
+	to_analyze+=("${l2_protocols[@]}")
     fi
+    
+    your_mac=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
+    generate_files "${to_analyze[@]}"
 
     trap killer SIGINT
     sniffer
     separate &
     clear
-    echo "${no_ports}"
     echo -e "${green}\n [+] Sniffing in ${net_interface} interface....${default}"
+    echo -e "${yellow}\n ${no_ports}${default}"
     analyzer
 }
 
-arg=$1
-arg2=$3
-arg3=$4
 if [ "$(id -u)" == "0" ];
 then
-    check=0
     if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
     then
 	show_help
@@ -461,6 +473,7 @@ then
     then
 	start_l7=0
 	start_l2=0
+	interface=0
         net_interface=$2
         interfaces=($interfaces_list)
 	for (( i=0;i<="$(( ${#interfaces[@]} - 1 ))";i++ ));
@@ -469,9 +482,15 @@ then
 	    then
 		break
 	    else
-		echo -e "${red}\n ERROR, the specified interface is not correct.\n${default}"
+	        interface=$((interface+1))
 	    fi
 	done
+
+	if [ "$interface" -lt "$(( ${#interfaces[@]} - 1 ))" ];
+	then
+	    start_l7=$((start_l7+1))
+	    start_l2=$((start_l2+1))
+	fi
 
 	if [ "$arg2" == "--layer7" ] || [ "$arg2" == "-7" ]
         then
@@ -479,13 +498,13 @@ then
 	    layer7=0
 	    if [ "$arg3" == "-6" ] || [ "$arg3" == "--ipv6" ]
 	    then
-		start_l7=$((start_l7+1))
-		ipv6=0
+	        start_l7=$((start_l7+1))
+	        ipv6=0
 		
 	    elif [ "$arg3" == "-4" ] || [ "$arg3" == "--ipv4" ]
 	    then
-		start_l7=$((start_l7+1))
-		ipv4=0
+	        start_l7=$((start_l7+1))
+	        ipv4=0
 	    fi
 
 	elif [ "$arg2" == "--layer2" ] || [ "$arg2" == "-2" ]
@@ -494,20 +513,18 @@ then
 	    layer2=0
 	fi
 
-	if [[ "$start_l7" -eq 2 || "$start_l2" -eq 1 ]];
+	if [[ "$start_l7" -eq 3 || "$start_l2" -eq 2 ]];
 	then
 	    main
 	else
-	    echo -e "${red}\n ERROR, any of the specified arguments are not valid.\n${default}"
+	    echo -e "${red}\n ERROR, any of the specified arguments are not valid, enter -h.\n${default}"
 	    sleep 2
 	fi
     else
-	show_help
-	exit
+        show_help
+        exit
     fi
 else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
-    sleep 3
+    sleep 5
 fi
-
-
