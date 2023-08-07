@@ -409,6 +409,7 @@ function main() {
 	    fi
 	else
 	    no_ports=$(echo "${yellow}\n [+] Warning, you dont have opened ports, starting layer 2 detection.....")
+            sleep 5
 	    layer7=1
 	    layer2=0
 	fi
