@@ -122,7 +122,9 @@ function separate() {
 		then
 	            port="${to_analyze[$i]}"
 		   
-		    if [[ "$port" != '53' && "$port" != '68' && "$port" != '69' ]];
+		    if [[ "$port" != '53' &&
+			  "$port" != '68' &&
+		          "$port" != '69' ]];
 		    then
 			filter="tcp.port == ${to_analyze[$i]} && ${filter_ip}"
 		    else
@@ -135,11 +137,15 @@ function separate() {
 		    protocol="${to_analyze[$i]}"
 		    if [ "$protocol" == 'arp' ];
 		    then
-			filter="arp.opcode == 1 && arp.dst.proto_ipv4 == ${your_ip}"
+			filter="(arp.opcode == 1 && arp.dst.proto_ipv4 == ${your_ip}) || (arp.opcode == 2 && eth.src == ${your_mac})"
 			
-		    elif [[ "$protocol" == 'icmp' || "$protocol" == 'icmpv6' ]];
+		    elif [ "$protocol" == 'icmpv6' ];
 		    then
-			filter="${protocol}"
+			filter="icmpv6.nd.ns.target_address == ${your_ip} || icmpv6.nd.na.target_address == ${your_ip}"
+
+		    elif [ "$protocol" == 'icmp' ];
+		    then
+			filter="${protocol} && eth.addr == ${your_mac}"
 		    fi
 		fi
 		
@@ -177,13 +183,15 @@ function get_subdirectory() {
     
     for subdirectory in "${subdirectories[@]}"
     do	
-	if [[ "$subdirectory" == "Denial_of_Service"  && "$tcp_denial" == "True" ]];
+	if [[ "$subdirectory" == "Denial_of_Service" &&
+	      "$tcp_denial" == "True" ]];
 	then
 	    subdirectory_to_save=$subdirectory
 	    tcp_denial=False
 	fi
 
-	if [[ "$subdirectory" == "Brute_Force" && "$handshake" == "True" ]];
+	if [[ "$subdirectory" == "Brute_Force" &&
+	      "$handshake" == "True" ]];
 	then
 	    subdirectory_to_save=$subdirectory
 	    handshake=False
@@ -257,12 +265,14 @@ function tcp_connection_alert() {
 	        syn=True
 	    fi
 
-	    if [[ "${array2[$l]}" == "12" && "$syn" == "True" ]];
+	    if [[ "${array2[$l]}" == "12" &&
+		  "$syn" == "True" ]];
 	    then
 	        synack=True
 	    fi
 
-	    if [[ "${array1[$k]}" == "1" && "$synack" == "True" ]];
+	    if [[ "${array1[$k]}" == "1" &&
+		  "$synack" == "True" ]];
 	    then
 	        handshake=True
 	    fi
@@ -308,6 +318,19 @@ function ping_alert() {
     unset array2[*]
 }
 
+function arp_alert() {
+    mac=$(tshark -r "${traffic_captures[$index]}" -Y "arp" 2> /dev/null | wc -l)
+    if [ "$mac" -gt 0 ];
+    then
+	echo "ALERT ==> MAC"
+    fi
+}
+
+function icmpv6_alert() {
+    continue
+}
+
+
 
 
 function l7_start_attack_detection() {
@@ -317,12 +340,22 @@ function l7_start_attack_detection() {
 	if [ "$protocol" == 'icmp' ];
 	then
 	    ping_alert
+	    
+	elif [ "$protocol" == 'arp' ];
+	then
+	    arp_alert
+
+	elif [ "$protocol" == 'icmpv6' ];
+	then
+	    icmpv6_alert
 	fi
     fi
     
     if [ "$index" -gt "$((n_elements - 1))" ];
     then
-	if [[ "$impacted_port" != '53' && "$impacted_port" != '68' && "$impacted_port" != '69' ]];
+	if [[ "$impacted_port" != '53' &&
+	      "$impacted_port" != '68' &&
+	      "$impacted_port" != '69' ]];
 	then
             tcp_dos_alert
 	    tcp_connection_alert
@@ -339,7 +372,8 @@ function analyzer() {
 	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
 	    index=$i
 	    
-	    if [[ "$validate" -gt 0 && "$layer7" -eq 0 ]];
+	    if [[ "$validate" -gt 0 &&
+		  "$layer7" -eq 0 ]];
 	    then
 		if [ "$i" -le "$((n_elements - 1))" ];
 		then
@@ -354,7 +388,8 @@ function analyzer() {
 		    clean_captures
 		fi
 		
-	    elif [[ "$validate" -gt 0 && "$layer2" -eq 0 ]];
+	    elif [[ "$validate" -gt 0 &&
+		    "$layer2" -eq 0 ]];
 	    then
 	        protocol="${to_analyze[$i]}"
 	        l2_start_attack_detection
@@ -387,8 +422,13 @@ function main() {
     then
 	port_scanner
 	sleep 5
-	if [ "${#opened_ports[@]}" -gt 0 ];
+	if [ "${#opened_ports[@]}" -lt 1 ];
 	then
+	    no_ports="echo '${yellow}\n [+] Warning, you dont have opened ports, starting layer 2 detection....."
+            sleep 5
+	    layer7=1
+	    layer2=0
+        else
 	    if [ "$ipv6" -eq 0 ];
 	    then
 		for (( i=0;i<="$(( ${#auxiliar_protocols[@]} - 1 ))";i++ ));
@@ -408,7 +448,8 @@ function main() {
 	    then
 		for (( i=0;i<="$(( ${#auxiliar_protocols[@]} - 1))";i++ ));
 		do
-		    if [[ "${auxiliar_protocols[$i]}" == 'icmp' || "${auxiliar_protocols[$i]}" == 'arp' ]];
+		    if [[ "${auxiliar_protocols[$i]}" == 'icmp' ||
+			  "${auxiliar_protocols[$i]}" == 'arp' ]];
 		    then
 			to_analyze+=("${auxiliar_protocols[$i]}")
 		    fi
@@ -421,11 +462,6 @@ function main() {
 	    fi
 	    n_elements="${#to_analyze[@]}"
 	    to_analyze+=("${opened_ports[@]}")
-        else
-	    no_ports="echo '${yellow}\n [+] Warning, you dont have opened ports, starting layer 2 detection....."
-            sleep 5
-	    layer7=1
-	    layer2=0
 	fi
     fi
 
@@ -441,7 +477,7 @@ function main() {
 	to_analyze+=("${l2_protocols[@]}")
     fi
     
-    your_mac=$(ifconfig $net_interface | grep 'inet6' | awk '{print $2}')
+    your_mac=$(ifconfig $net_interface | grep 'eth' | awk '{print $2}')
     generate_files "${to_analyze[@]}"
 
     trap killer SIGINT
@@ -455,12 +491,14 @@ function main() {
 
 if [ "$(id -u)" == "0" ];
 then
-    if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]
+    if [ "$arg" == "--help" ] ||
+       [ "$arg" == "-h" ]
     then
 	show_help
         exit
 
-    elif  [ "$arg" == "--list-interfaces" ] || [ "$arg" == "-l" ]
+    elif  [ "$arg" == "--list-interfaces" ] ||
+	  [ "$arg" == "-l" ]
     then
         interfaces=($interfaces_list)
 	echo -e "${yellow}\n Available interfaces:\n"
@@ -469,7 +507,8 @@ then
 	    echo -e "${green} [+] ${interfaces[$i]}${default}\n"
 	done
 
-    elif [ "$arg" == "--interface" ] || [ "$arg" == "-i" ]
+    elif [ "$arg" == "--interface" ] ||
+	 [ "$arg" == "-i" ]
     then
 	start_l7=0
 	start_l2=0
@@ -492,33 +531,39 @@ then
 	    start_l2=$((start_l2+1))
 	fi
 
-	if [ "$arg2" == "--layer7" ] || [ "$arg2" == "-7" ]
+	if [ "$arg2" == "--layer7" ] ||
+	   [ "$arg2" == "-7" ]
         then
 	    start_l7=$((start_l7+1))
 	    layer7=0
-	    if [ "$arg3" == "-6" ] || [ "$arg3" == "--ipv6" ]
+	    if [ "$arg3" == "-6" ] ||
+	       [ "$arg3" == "--ipv6" ]
 	    then
 	        start_l7=$((start_l7+1))
 	        ipv6=0
 		
-	    elif [ "$arg3" == "-4" ] || [ "$arg3" == "--ipv4" ]
+	    elif [ "$arg3" == "-4" ] ||
+		 [ "$arg3" == "--ipv4" ]
 	    then
 	        start_l7=$((start_l7+1))
 	        ipv4=0
 	    fi
 
-	elif [ "$arg2" == "--layer2" ] || [ "$arg2" == "-2" ]
+	elif [ "$arg2" == "--layer2" ] ||
+	     [ "$arg2" == "-2" ]
 	then
 	    start_l2=$((start_l2+1))
 	    layer2=0
 	fi
 
-	if [[ "$start_l7" -eq 3 || "$start_l2" -eq 2 ]];
+	if [[ "$start_l7" -eq 3 ||
+	      "$start_l2" -eq 2 ]];
 	then
 	    main
 	else
-	    echo -e "${red}\n ERROR, any of the specified arguments are not valid, enter -h.\n${default}"
+	    echo -e "${red}\n ERROR, any of the specified arguments are not valid.${default}"
 	    sleep 2
+	    show_help
 	fi
     else
         show_help
@@ -528,3 +573,4 @@ else
     echo -e "${red} ERROR, to run intrudeX you must be root user.${default}"
     sleep 5
 fi
+
