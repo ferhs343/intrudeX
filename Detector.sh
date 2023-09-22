@@ -99,17 +99,11 @@ function port_scanner() {
     done
 }
 
-function sniffer() {
+function demux() {
 
-    tshark -w "${general_capture}" -i $net_interface -f "host ${your_ip}" 2> /dev/null &
-    pid_sniffer=$!
-    #principal sniffer process ID
-
-    echo -e "${green}\n [+] Detecting threats....${default}"
-    echo -e "${yellow}\n ${no_ports}${default}"
-    
     while true;
     do
+	control=0
 	for (( i=0;i<="$(( ${#traffic_captures[@]} - 1 ))";i++ ));
 	do
 	    if [ "$layer7" -eq 0 ];
@@ -117,7 +111,7 @@ function sniffer() {
 		if [ "$i" -gt "$((n_elements - 1))" ];
 		then
 	            port="${to_analyze[$i]}"
-		   
+		    
 		    if [[ "$port" != '53' &&
 			  "$port" != '68' &&
 		          "$port" != '69' ]];
@@ -131,6 +125,7 @@ function sniffer() {
 		if [ "$i" -le "$((n_elements - 1))" ];
 		then
 		    protocol="${to_analyze[$i]}"
+		    
 		    if [ "$protocol" == 'arp' ];
 		    then
 			filter="(arp.opcode == 1 && arp.dst.proto_ipv4 == ${your_ip}) || (arp.opcode == 2 && eth.src == ${your_mac})"
@@ -155,28 +150,145 @@ function sniffer() {
 	    if [ "$(( n_packets ))" -gt 0 ];
 	    then
 		tshark -w "${traffic_captures[$i]}" -r "${general_capture}" -Y "${filter}" 2> /dev/null
-	    fi
-	done
-
-	for (( i=0;i<="$(( ${#traffic_captures[@]} - 1 ))";i++ ));
-	do
-	    validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
-	    if [ "$(( validate ))" -gt 0 ];
-	    then
-		analyzer
+	    else
+		control=$((control+1))
+	        if [ "$control" -eq "$(( ${#traffic_captures[@]} - 1 ))" ];
+	        then
+		    sleep 5
+		fi
 	    fi
 	done
     done
 }
 
-function analyzer() {
+function sniffer() {
 
-	echo "yaaa"
+    if [ "$layer7" -eq 0 ];
+    then
+	tshark -w "${general_capture}" -i $net_interface -f "host ${your_ip}" 2> /dev/null &
+    elif [ "$layer2" -eq 0 ];
+    then
+	tshark -w "${general_capture}" -i $net_interface -f "not tcp and not udp" 2> /dev/null &
+    fi
+    
+    pid_sniffer=$!
+    #principal sniffer process ID
+    demux &   
 }
 
+function validator() {
+
+    start=0
+    control=0
+    for (( i=0;i<="$(( ${#traffic_captures[@]} - 1 ))";i++ ));
+    do
+        index=$i
+        validate=$(tshark -r "${traffic_captures[$i]}" 2> /dev/null | wc -l)
+	if [ "$(( validate ))" -gt 0 ];
+	then
+	    start=$((start+1))
+	else
+	    control=$((control+1))
+	    if [ "$control" -eq "$(( ${#traffic_captures[@]} - 1 ))" ];
+	    then
+	        sleep 5
+	    fi
+	fi
+	    
+        if [[ "$(( start ))" -gt 0 &&
+              "$layer7" -eq 0 ]];
+        then
+            if [ "$i" -gt "$(( n_elements - 1 ))" ];
+	    then
+		impacted_port="${to_analyze[$i]}"
+		    
+	    elif [ "$i" -le "$(( n_elements - 1 ))" ];
+	    then
+	        protocol="${to_analyze[$i]}"
+            fi
+	    #Start analysis based on MITRE ATT&CK 
+	    start_TA0043
+	    #start_TA0042
+	    #start_TA0001
+	    #start_TA0002
+	fi
+
+	if [[ "$(( start ))" -gt 0 &&
+              "$layer2" -eq 0 ]];
+	then
+	    protocol="${to_analyze[$i]}"
+	    start_hunting_l2
+	fi
+    done
+    validator
+}
+
+function check_origin() {
+
+    origin=$(tshark -r "${traffic_captures[$index]}" -T fields -e "ip.src" 2> /dev/null | head -n 1)
+    keep_going=1
+    if [ "$incoming" -eq 0 ];
+    then
+	if [ "$origin" != "${your_ip}" ];
+	then
+	    keep_going=0
+	fi
+	
+    elif [ "$outgoing" -eq 0 ];
+    then
+	if [ "$origin" == "${your_ip}" ];
+	then
+	    keep_going=0
+	fi
+    fi
+}
+
+function start_TA0043() {
+
+    check_origin
+    if [ "$keep_going" -eq 0 ];
+    then
+
+	# ============ T00043 ============
+	
+	srcport=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.flags == 0x002" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
+	condition1_scan=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.port == ${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+	array1=($condition1_scan)
+	condition2_scan=$(tshark -r "${traffic_captures[$index]}" -Y "tcp.port==${srcport}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+	array2=($condition2_scan)
+		    
+	for (( k=0;k<="${#array1[@]}";k++ ));
+	do
+            for (( l=0;l<="${#array2[@]}";l++ ));
+            do
+		if [ "${array1[$k]}" == "2" ];
+		then
+	            syn=True
+		fi
+
+		if [[ "${array2[$l]}" == "12" &&
+		      "$syn" == "True" ]];
+		then
+	            synack=True
+		fi
+
+		if [[ "${array1[$k]}" == "1" &&
+		      "$synack" == "True" ]];
+		then
+	            handshake=True
+		    echo "ALERT"
+		fi
+	    done
+	done
+    fi
+}
+
+function start_hunting_l2() {
+    continue
+}
 
 function generate_files() {
-
+    
     local_array=("$@")
 
     for (( i=0;i<="$(( ${#local_array[@]} - 1 ))";i++ ));
@@ -211,7 +323,7 @@ function main() {
 	    sleep 5
 	    if [ "${#opened_ports[@]}" -lt 1 ];
 	    then
-		no_ports="\n [+] Warning, you dont have opened ports, analyzing outgoing traffic....."
+		no_ports="[+] Warning, you dont have opened ports, analyzing outgoing traffic.....\n"
 		incoming=1
 		outgoing=0
 	    fi
@@ -298,7 +410,10 @@ function main() {
 
     trap killer SIGINT
     clear
-    sniffer 
+    sniffer
+    echo -e "${green}\n [+] Detecting threats....${default}"
+    echo -e "${yellow}\n ${no_ports}${default}"
+    validator
 }
 
 if [ "$(id -u)" == "0" ];
