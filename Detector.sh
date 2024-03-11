@@ -82,28 +82,29 @@ function sniffer() {
 
 function show_help() {
     
-    echo -e "${yellow}\n intrudeX V 1.0.0 - By: Luis Herrera${green}"
-    echo -e "\n Usage: ./intrudex.sh [INTERFACE] [LAYER_OPTIONS] [IP_OPTIONS] [ANALYZE_OPTIONS]"
+    echo -e "${yellow}\n TTP Tracker V 1.0.0 - By: Luis Herrera${green}"
+    echo -e "\n Usage: ./ttptracker.sh [INTERFACE] [LAYER_OPTIONS] [IP_OPTIONS] [ANALYZE_OPTIONS]"
     echo -e "\n\t -h, --help: Show this panel."
     echo -e "\n\t -l, --list-interfaces: Show available interfaces in your system."
     echo -e "\n\t -i, --interface: Establish a listening interface."
     echo -e "\n\t ${yellow}[LAYER OPTIONS] ${green}"
-    echo -e "\n\t -l7, --layer7: Sniff in layer 7."
-    echo -e "\n\t -l2, --layer2: Sniff in layer 2."
+    echo -e "\n\t -l7, --layer7: Hunt in layer 7."
+    echo -e "\n\t -l2, --layer2: Hunt in layer 2."
     echo -e "\n\t ${yellow}[IP OPTIONS] ${green}"
-    echo -e "\n\t -6, --ipv6: Use IPv6"
-    echo -e "\n\t -4, --ipv4: Use IPv4."
+    echo -e "\n\t -6, --ipv6: Use IPv6 protocol."
+    echo -e "\n\t -4, --ipv4: Use IPv4 protocol."
     echo -e "\n\t ${yellow}[ANALYZE OPTIONS] ${green}"
     echo -e "\n\t -in, --inbound: Analyze incoming traffic."
     echo -e "\n\t -out, --outbound: Analyze outgoing traffic.\n${default}"
 }
 
-function sessions() {
+function working_sessions() {
 
     sessions=()
     partials=()
 
-    services=(
+    #List of protocolss where TTP Tracker performs threat hunting in l7 option
+    l7_list=(
 	'http'
 	'ssl'
 	'ssh'
@@ -116,14 +117,27 @@ function sessions() {
 	'kerberos'
 	'smtp'
 	'icmp'
+	'icmpv6'
 	'dhcp'
 	'llmnr'
+    )
+
+    #List of protocolss where TTP Tracker performs threat hunting in l2 option
+    l2_list=(
+	'arp'
+	'icmp'
+	'icmpv6'
+	'stp'
+	'cdp'
+	'lldp'
+	'hsrp'
     )
     
     while true;
     do
-	initial="${#sessions[@]}"
-       
+	partial_session=0
+	in="${#sessions[@]}"
+	
 	if [ "$incoming" -eq 0 ];
 	then
             session=$(tshark -r "${general_capture}" -Y "ip.src != ${your_ip} && tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null)
@@ -132,26 +146,46 @@ function sessions() {
 	then
             session=$(tshark -r "${general_capture}" -Y "ip.src == ${your_ip} && tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e "tcp.srcport" 2> /dev/null)
 	fi
-    
+
 	sessions=($session)
-	final="${#sessions[@]}"
+	fin="${#sessions[@]}"
 
-	echo "${initial} ${final}"
-
-	if [ "${final}" -ne "${initial}" ];
+	if [ "${fin}" -ne "${in}" ];
 	then
-            for (( i="${initial}";i<="${final}";i++ ));
+	    #All sessions
+            for (( i="${in}";i<="$(( ${fin} - 1 ))";i++ ));
 	    do
-		sleep 1
-		port="${sessions[$i]}"
-		echo "${#sessions[@]} ${port}"
-		timestamp=$(date | awk '{print $5}')
-		conn_status
-	        #start session analysis
+		sleep 1 
+	        session_ready
 	    done
 	fi
+
+	if [ "${#partials[@]}" -gt 0 ];
+	then
+	    #Partial sessions
+	    partial_session=1
+	    for (( i=0;i<="$(( ${#partials[@]} - 1 ))";i++ ));
+	    do
+		sleep 1
+	        session_ready
+	    done
+	fi	
         sleep 3
     done
+}
+
+function session_ready() {
+
+    if [ "$partial_session" -eq 1 ];
+    then	
+	port="${partials[$i]}"
+    else
+	port="${sessions[$i]}"
+    fi
+
+    #start session analysis
+    timestamp=$(date | awk '{print $5}')
+    conn_status
 }
 
 function show_message() {
@@ -178,7 +212,7 @@ function conn_status() {
     socket="[${impact_ip}:${impact_port}]"
     add=0
     finished=0
-    not_finished=0
+    unfinished=0
     syn=0
     synack=0
     ack=0
@@ -215,7 +249,7 @@ function conn_status() {
 	  ("$fin" -eq 0 && "$rst" -eq 0) ]];
     then
 	show_message "$T1" "$logs"
-	not_finished=1
+	unfinished=1
 	partial_sessions
     fi
 	
@@ -223,15 +257,14 @@ function conn_status() {
 	  ("$fin" -eq 1 || "$rst" -eq 1) ]];
     then
 	show_message "$T8" "$logs"
-	finished=1
-	partial_sessions
-        for (( k=0;k<="$(( ${#services[@]} - 1 ))";k++ ));
+	if [ "$partial_session" -eq 1 ]; then finished=1; partial_sessions; fi
+        for (( k=0;k<="$(( ${#l7_list[@]} - 1 ))";k++ ));
         do
-            n_services=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${services[$k]}" 2> /dev/null | wc -l)
+            n_service=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${l7_list[$k]}" 2> /dev/null | wc -l)
             if [ "$(( n_service ))" -gt 0 ];
             then
-		services="${services[$k]}"
-		threat_hunt
+		service="${l7_list[$k]}"
+		begin_threat_hunt_l7
 	    fi
 	done
     fi
@@ -252,31 +285,37 @@ function conn_status() {
 
 function partial_sessions() {
 
-    for (( i=0;i<="$(( ${#partials[@]} - 1 ))";i++ ));
-    do
-	if [[ "$port" != "${partials[$i]}" &&
-	      "$not_finished" -eq 1 ]];
-	then
-	    add=$((add+1))
-	    if [ "$add" -eq "$(( ${#partials[$i]} - 1 ))" ];
+    if [ "${#partials[@]}" -gt 0 ];
+    then
+	for (( k=0;k<="$(( ${#partials[@]} - 1 ))";k++ ));
+	do
+	    if [[ "$port" != "${partials[$k]}" &&
+		  "$unfinished" -eq 1 ]];
 	    then
-		partials+=($port)
+		add=$((add+1))
 	    fi
-	fi
 	
-	if [[ "$port" == "${partials[$i]}" &&
-	      "$finished" -eq 1 ]];
-	then
-	    unset "${partials[$i]}"
-	fi
-    done
+	    if [[ "$port" == "${partials[$k]}" &&
+		  "$finished" -eq 1 ]];
+	    then
+		unset "partials[k]"
+		break
+	    fi
+	done
+    fi
+
+    if [[ ("${#partials[@]}" -lt 1 && "$unfinished" -eq 1) ||
+	  ("$(( add - 1 ))" -eq "$(( ${#partials[@]} - 1 ))") ]];
+    then
+	partials+=($port)
+    fi
 }
 
-function threat_hunt() {
+function begin_threat_hunt_l7() {
 
     extensions=('.exe' '.zip' '.msi' '.dll' '.bat' '.py' '.jpg' '.png' '.pdf' '.docx' '.xls' '.gif' '/')
     
-    if [ "$protocol" == "http" ];
+    if [ "$service" == "http" ];
     then
 	methods=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && http.request.method" -T fields -e "http.request.method" 2> /dev/null)
         uri=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && http.request.uri" -T fields -e "http.request.uri" 2> /dev/null)
@@ -405,7 +444,7 @@ then
 	    
 	    if [ "$layer7" -eq 0 ];
 	    then
-		sessions
+		working_sessions
 		
 	    elif [ "$layer2" -eq 0];
 	    then
