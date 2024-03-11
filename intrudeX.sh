@@ -51,17 +51,14 @@ function frame() {
 #main banner
 function banner() {
 
-    echo -e "${green}\n"
-    echo -e '  ██╗███╗   ██╗████████╗██████╗ ██╗   ██╗██████╗ ███████╗██╗  ██╗  '
-    echo -e '  ██║████╗  ██║╚══██╔══╝██╔══██╗██║   ██║██╔══██╗██╔════╝╚██╗██╔╝  '   
-    echo -e "  ██║██╔██╗ ██║   ██║   ██████╔╝██║   ██║██║  ██║█████╗   ╚███╔╝   ${yellow}"
-    echo -e '  ██║██║╚██╗██║   ██║   ██╔══██╗██║   ██║██║  ██║██╔══╝   ██╔██╗   '
-    echo -e "  ██║██║ ╚████║   ██║   ██║  ██║╚██████╔╝██████╔╝███████╗██╔╝ ██╗                            ${cyan}By: Luis Herrera${yellow}"
-    echo -e "  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝                            ${cyan}V 1.0.0${red}"                       
-    echo -e "${red}"
-    echo -e " +-------------------------------------------------------------------------------------------------------------+"
-    echo -e " | Welcome to intrudeX!!, the ideal tool to monitor the network in search of intruders. Happy hunting!! :D     |"
-    echo -e " +-------------------------------------------------------------------------------------------------------------+"
+    echo -e "${purple}\n"
+    echo -e '   __ __| __ __| _ \  __ __|               |             ' 
+    echo -e '      |      |   __/     |   _| _` |   _|  | /   -_)   _| '                           
+    echo -e "     _|     _|  _|      _| _| \__,_| \__| _\_\ \___| _|          ${green} By: Luis Herrera"
+    echo -e "                                                                  V 1.0.0 ${yellow}\n"
+    echo -e " +--------------------------------------------------------------------------------------+"
+    echo -e " | Welcome to TTP Tracker!!, the ideal tool to hunt hidden threats. Happy hunting!! :D  |"
+    echo -e " +--------------------------------------------------------------------------------------+"
     echo -e "${default}"                                               
 }
 
@@ -112,7 +109,7 @@ function tool_check() {
         'wget'
         'curl'
 	'jq'
-	'netcat'
+	'mergecap'
     )
 
     tool_validator=0
@@ -120,7 +117,7 @@ function tool_check() {
 
     for i in "${required_tools[@]}"
     do
-	if [[ ! $(which $i) ]];
+	if [[ ! $(which $i 2> /dev/null) ]];
 	then
 	    tool_validator=$((validator+1))
 	fi
@@ -133,12 +130,12 @@ function tool_check() {
 	sleep 1
 	for i in "${required_tools[@]}"
 	do
-            if [[ $(which $i) ]];
+            if [[ $(which $i 2> /dev/null) ]];
             then
 		echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) ${green}[OK]${default}"
 		sleep 1
             else
-		echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [ERROR]${default}"
+		echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [MISSING]${default}"
 		no_tool+=("$i")
 		sleep 1
             fi
@@ -149,7 +146,7 @@ function tool_check() {
         do
 	    echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-	    sudo apt-get install -fy $tool &>/dev/null
+	    apt install -fy $tool &>/dev/null
 
 	    if [ "$?" -eq 0 ];
 	    then
@@ -421,7 +418,7 @@ function main_menu() {
 function main() {
     
     #main program
-    if [ $(grep -i "debian" /etc/*-release) ];
+    if grep -q 'CentOS' /etc/*-release;
     then
 	clear
 	main_menu
