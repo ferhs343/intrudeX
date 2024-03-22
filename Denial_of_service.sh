@@ -1,12 +1,4 @@
 #!/bin/bash
-#
-# SEC-OPS
-# --------
-# Herramienta con múltiples utilidades para equipos de respuesta a incidentes.
-#    - Detección de ataques más relevantes, desde un archivo pcap
-#    - Detección de ataques de reconocimiento a la red
-#    - Utilidades de Threat Intellingece
-# Luis Herrera, Abril 2023
 
 source Secops/secops.sh
 
