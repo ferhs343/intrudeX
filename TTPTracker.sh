@@ -1,12 +1,17 @@
 #!/bin/bash
 
 # intrudeX
-# --------
-# Herramienta enfocada a la detección de intrusos en tu host local.
-#    - Detección de ataques a nivel de capa de aplicación, así como a nivel de capa 2
-#    - Detección de tecnicas de reconocimiento
-#    - Así mismo, intrudeX cuenta con utilidades para la ejecución de Threat Intellingece
-# Luis Herrera, Abril 2023
+# +------------------------------------------------------------------------+
+# | TTP Tracker                                                            |
+# | -----------                                                            |
+# |                                                                        |
+# | Threat hunting endpoint tool in search of TTP in the network traffic.  |
+# |                                                                        |
+# | Author: Luis Herrera - @Ferhs343                                       |
+# | Contact: fer.hs343@gmail.com                                           |
+# | V 1.0.0                                                                |
+# |                                                                        |
+# +------------------------------------------------------------------------+
 
 source Files.sh
 source Colors.sh
