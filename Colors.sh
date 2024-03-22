@@ -6,3 +6,6 @@ red="\e[1;31m"
 cyan="\e[0;36m"
 green="\033[92m"
 purple="\e[1;95m"
+
+
+
