@@ -15,6 +15,7 @@
 source Colors.sh
 source Messages.sh
 source Files.sh
+source Protocols.sh
 
 layer2=1
 layer7=1
@@ -387,9 +388,7 @@ function udp_services_log() {
     if [ "$service" == "dns" ];
     then
 	path_log="./$logs_dir/${logs[7]}"
-	query=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && dns.qry.name" -T fields -e "dns.qry.name" 2> /dev/null)
-	response_t=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && dns.resp.type" -T fields -e "dns.resp.type" 2> /dev/null)
-	response_n=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && dns.resp.name" -T fields -e "dns.resp.name" 2> /dev/null)
+	dns "$port"
 	show_message "$path_log" "$query" "$response_t" "$response_n"
     fi
 }
@@ -399,16 +398,12 @@ function tcp_services_log() {
     if [ "$service" == "http" ];
     then
 	path_log="./$logs_dir/${logs[1]}"
-	method=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && http.request.method" -T fields -e "http.request.method" 2> /dev/null)
-        uri=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && http.request.uri" -T fields -e "http.request.uri" 2> /dev/null)
-	user_agent=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && http.user_agent" -T fields -e "http.user_agent" 2> /dev/null)
-        mime_type=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && http.content_type" -T fields -e "http.content_type" 2> /dev/null)
-	status_code=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && http.response.code" -T fields -e "http.response.code" 2> /dev/null)
+        http "$port"
         show_message "$path_log" "$method" "$uri" "$user_agent" "$mime_type" "$status_code"
 
     elif [ "$service" == "ssl" ];
     then
-	o=0
+	path_log="./$logs_dir/${logs[2]}"
     fi
 }
 
@@ -556,3 +551,4 @@ else
     echo -e "${red}\n ${err_root} ${default}\n"
     sleep 5
 fi
+
