@@ -14,20 +14,36 @@
 
 function http() {
 
-    method=$(tshark -r "${general_capture}" -Y "tcp.port == ${1}" -T fields -e "http.request.method" 2> /dev/null | tr -d '\n')
-    uri=$(tshark -r "${general_capture}" -Y "tcp.port == ${1}" -T fields -e "http.request.uri" 2> /dev/null | tr -d '\n')
-    hostname=$(tshark -r "${general_capture}" -Y "tcp.port == ${1}" -T fields -e "http.host" 2> /dev/null | tr -d '\n')
-    user_agent=$(tshark -r "${general_capture}" -Y "tcp.port == ${1}" -T fields -e "http.user_agent" 2> /dev/null | tr -d '\n')
-    mime_type=$(tshark -r "${general_capture}" -Y "tcp.port == ${1}" -T fields -e "http.content_type" 2> /dev/null | tr -d '\n')
-    status_code=$(tshark -r "${general_capture}" -Y "tcp.port == ${1}" -T fields -e "http.response.code" 2> /dev/null | tr -d '\n')
+    uri=$(tshark -r "${general_capture}" -Y "tcp.port == ${1} && http.request.uri" -T fields -e "http.request.uri" 2> /dev/null)
+    uri=($uri)
+
+    for (( l=0;l<="$(( ${#uri[@]} - 1 ))";l++ ));
+    do
+	    method=$(tshark -r "${general_capture}" -Y "tcp.port == ${1} && http.request.uri == \"${uri[$l]}\"" -T fields -e "http.request.method" 2> /dev/null)
+	    method+=("$method")
+	    hostname=$(tshark -r "${general_capture}" -Y "tcp.port == ${1} && http.request.uri == \"${uri[$l]}\"" -T fields -e "http.host" 2> /dev/null)
+	    hostname+=("$hostname")
+	    user_agent=$(tshark -r "${general_capture}" -Y "tcp.port == ${1} && http.request.uri == \"${uri[$l]}\"" -T fields -e "http.user_agent" 2> /dev/null)
+	    user_agent+=("$user_agent")
+	    mime_type=$(tshark -r "${general_capture}" -Y "tcp.port == ${1} && http.request.uri == \"${uri[$l]}\"" -T fields -e "http.content_type" 2> /dev/null)
+	    mime_type+=("$mime_type")
+	    status_code=$(tshark -r "${general_capture}" -Y "tcp.port == ${1} && http.request.uri == \"${uri[$l]}\"" -T fields -e "http.response.code" 2> /dev/null)
+	    status_code+=("$status_code")
+    done
 }
 
 function dns() {
 
-    query=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && ${2}" -T fields -e "dns.qry.name" 2> /dev/null | tr -d '\n')
-    r_type=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && ${2} && dns.qry.name == ${query}" -T fields -e "dns.resp.type" 2> /dev/null | tr -d '\n') 
-    r_name=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && ${2} && dns.qry.name == ${query}" -T fields -e "dns.resp.name" 2> /dev/null | tr -d '\n')
-    r_a=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && ${2} && dns.qry.name == ${query}" -T fields -e "dns.a" 2> /dev/null | tr -d '\n')
-    r_aaaa=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && ${2} && dns.qry.name == ${query}" -T fields -e "dns.aaaa" 2> /dev/null | tr -d '\n')
-    r_txt=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && ${2} && dns.qry.name == ${query}" -T fields -e "dns.txt" 2> /dev/null | tr -d '\n')
+    query=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && dns.flags == 0x0100" -T fields -e "dns.qry.name" 2> /dev/null)
+    query=($query)
+
+    for (( l=0;l<="$(( ${#query[@]} - 1 ))";l++ ));
+    do
+	    r_a=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && dns.flags == 0x8180" -T fields -e "dns.a" 2> /dev/null)
+	    r_a+=("$r_a")
+	    r_aaaa=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && dns.flags == 0x8180" -T fields -e "dns.aaaa" 2> /dev/null)
+	    r_aaaa+=("$r_aaaa")
+	    r_txt=$(tshark -r "${general_capture}" -Y "udp.port == ${1} && dns.flags == 0x8180" -T fields -e "dns.txt" 2> /dev/null)
+	    r_txt+=("$r_txt")
+    done
 }
