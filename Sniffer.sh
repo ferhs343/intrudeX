@@ -175,13 +175,11 @@ function working_sessions() {
 						
 	if [ "$incoming" -eq 0 ];
 	then
-	    ip_src="${ip_filter}.src != ${your_ip}"
-            session=$(tshark -r "${general_capture}" -Y "${ip_src} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
+            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src != ${your_ip} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
 	   
         elif [ "$outgoing" -eq 0 ];
 	then
-	    ip_src="${ip_filter}.src == ${your_ip}"
-            session=$(tshark -r "${general_capture}" -Y "${ip_src} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
+            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src == ${your_ip} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
 	fi
 
         if [ "$tcp" -eq 1 ]; then tcp_sessions=($session); else udp_sessions=($session); fi
@@ -192,6 +190,7 @@ function working_sessions() {
 	    #All sessions
             for (( i="${ini}";i<="$(( ${fin} - 1 ))";i++ ));
 	    do
+		sleep 0.3
 	        prepare_session
 	    done
 	fi
@@ -203,6 +202,7 @@ function working_sessions() {
 	    partial_session=1
 	    for (( i=0;i<="$(( ${#partials[@]} - 1 ))";i++ ));
 	    do
+		sleep 0.3
 	        prepare_session
 	    done
 	fi
@@ -224,20 +224,11 @@ function prepare_session() {
 	if [ "$tcp" -eq 1 ]; then port="${tcp_sessions[$i]}"; else port="${udp_sessions[$i]}"; fi
     fi
 
-    if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
-}
-
-function print_log() {
-
-    pckt_data=("$@")
-    init_log="[${port}] [${timestamp}] [${socket}]"
-    
-    for (( l=0;l<="$(( ${#pckt_data[@]} - 1 ))";l++ ));
-    do
-	 init_log+=" [${pckt_data[$l]}]"
-    done
-    
-    echo "${init_log}" >> $path_log
+    if [ "$port" != "$no_dup" ];
+    then
+	if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
+    fi
+    no_dup=$port
 }
 
 function tcp_extract_info() {
@@ -248,16 +239,15 @@ function tcp_extract_info() {
 
     if [ "$incoming" -eq 0 ];
     then
-	impact_ip=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort | uniq)
-	impact_port=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq)
+	impact_ip=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "${ip_filter}.src" 2> /dev/null)
+	impact_port=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "tcp.dstport" 2> /dev/null)
 
     elif [ "$outgoing" -eq 0 ];
     then
 	impact_ip=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort | uniq)
 	impact_port=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq)
     fi
-
-    socket="${impact_ip}:${impact_port}"
+    
     add=0
     finished=0
     unfinished=0
@@ -299,8 +289,7 @@ function tcp_extract_info() {
     then
 	if [ "$partial_session" -eq 0 ];
 	then
-	    packet_data=("${T1}")
-	    print_log "${packet_data[@]}"
+	    preparing_log_TU "${T1}"
 	    unfinished=1
 	    partial_sessions
 	fi
@@ -309,8 +298,7 @@ function tcp_extract_info() {
     if [[ ("$SY" -eq 1 && "$SA" -eq 1 && "$AK" -eq 1) &&
 	  ("$FN" -eq 1 || "$RT" -eq 1) ]];
     then
-	packet_data=("${T4}")
-	print_log "${packet_data[@]}"
+	preparing_log_TU "${T4}"
 	if [ "$partial_session" -eq 1 ]; then finished=1; partial_sessions; fi
         for (( k=0;k<="$(( ${#tcp_list[@]} - 1 ))";k++ ));
         do
@@ -328,16 +316,14 @@ function tcp_extract_info() {
 	  "$RT" -eq 0 &&
 	  "$FN" -eq 0 ]];
     then
-        packet_data=("${T2}")
-	print_log "${packet_data[@]}"
+        preparing_log_TU "${T2}"
     fi
 
     if [[ "$SY" -eq 1 &&
 	  "$SA" -eq 0 &&
 	  "$RT" -eq 1 ]];
     then
-	packet_data=("${T3}")
-        print_log "${packet_data[@]}"
+	preparing_log_TU "${T3}"
     fi
 }
 
@@ -384,10 +370,7 @@ function udp_extract_info() {
 	impact_port=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "udp.dstport" 2> /dev/null | sort | uniq)
     fi
 
-    socket="${impact_ip}:${impact_port}"
-
-    packet_data=("${U1}")
-    print_log "${packet_data[@]}"
+    preparing_log_TU "${U1}"
     for (( k=0;k<="$(( ${#udp_list[@]} - 1 ))";k++ ));
     do
 	n_service=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${udp_list[$k]}" 2> /dev/null | wc -l)
@@ -399,14 +382,45 @@ function udp_extract_info() {
     done
 }
 
+function preparing_log_TU() {
+
+    impact_ip=($impact_ip)
+    impact_port=($impact_port)
+    
+    for (( k=0;k<="$(( ${#impact_ip[@]} - 1 ))";k++ ));
+    do
+	for (( l=0;l<="$(( ${#impact_port[@]} - 1 ))";l++ ));
+	do
+	    packet_data=("${impact_ip[$k]}" "${impact_port[$l]}" "${1}")
+	    print_log "${packet_data[@]}"
+	done
+    done
+}
+
+function print_log() {
+
+    pckt_data=("$@")
+    init_log="[${port}] [${timestamp}]"
+    
+    for (( m=0;m<="$(( ${#pckt_data[@]} - 1 ))";m++ ));
+    do
+	init_log+=" [${pckt_data[$m]}]"
+    done
+
+    echo "${init_log}" >> $path_log
+}
+
 function udp_services_log() {
 
     if [ "$service" == "dns" ];
     then
 	path_log="./$logs_dir/${logs[7]}"
-	dns "$port" "$ip_src"
-	packet_data=("${query}" "${r_type}" "${r_name}" "${r_a}" "${r_aaaa}" "${r_txt}")
-	print_log "${packet_data[@]}"
+	dns "$port"
+	for (( l=0;l<="$(( ${#query[@]} - 1 ))";l++ ));
+	do  
+	    packet_data=("${query[$l]}" "${r_a[$l]}" "${r_aaaa[$l]}" "${r_txt[$l]}")
+	    print_log "${packet_data[@]}"
+	done
     fi
 }
 
@@ -415,9 +429,12 @@ function tcp_services_log() {
     if [ "$service" == "http" ];
     then
 	path_log="./$logs_dir/${logs[1]}"
-        http "$port"
-	packet_data=("${method}" "${uri}" "${hostname}" "${user_agent}" "${mime_type}" "${status_code}")
-        print_log "${packet_data[@]}"
+        http "$port"	
+	for (( l=0;l<="$(( ${#uri[@]} - 1 ))";l++ ));
+	do
+	    packet_data=("${method[$l]}" "${uri[$l]}" "${hostname[$l]}" "${user_agent[$l]}" "${mime_type[$l]}" "${status_code[$l]}")
+            print_log "${packet_data[@]}"
+	done
 
     elif [ "$service" == "ssl" ];
     then
