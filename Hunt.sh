@@ -112,6 +112,7 @@ function working_sessions() {
     tcp_sessions=()
     udp_sessions=()
     partials=()
+    ch=0
     
     #List of TCP protocolss where TTP Tracker performs threat hunting in l7 option
     tcp_list=(
@@ -156,7 +157,7 @@ function working_sessions() {
     
     while true;
     do
-	if [ "$((alternate % 2))" -eq 0 ];
+	if [ "$((ch % 2))" -eq 0 ];
 	then
 	    tcp=1
 	    udp=0
@@ -174,11 +175,13 @@ function working_sessions() {
 						
 	if [ "$incoming" -eq 0 ];
 	then
-            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src != ${your_ip} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
+	    ip_src="${ip_filter}.src != ${your_ip}"
+            session=$(tshark -r "${general_capture}" -Y "${ip_src} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
 	   
         elif [ "$outgoing" -eq 0 ];
 	then
-            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src == ${your_ip} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
+	    ip_src="${ip_filter}.src == ${your_ip}"
+            session=$(tshark -r "${general_capture}" -Y "${ip_src} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
 	fi
 
         if [ "$tcp" -eq 1 ]; then tcp_sessions=($session); else udp_sessions=($session); fi
@@ -203,16 +206,16 @@ function working_sessions() {
 	        prepare_session
 	    done
 	fi
-	
-        sleep 3
-	alternate=$((alternate+1))
+
+	sleep 0.5
+	ch=$((ch+1))
     done
 }
 
 function prepare_session() {
 
     #start session analysis
-    timestamp=$(date | awk '{print $2 " " $3 " " $4 " " $5}')
+    timestamp=$(date | awk '{print $2 "-" $3 "-" $4 "-" $5}')
 
     if [ "$partial_session" -eq 1 ];
     then	
@@ -224,9 +227,17 @@ function prepare_session() {
     if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
 }
 
-function show_message() {
+function print_log() {
 
-    echo -e " ${timestamp} ${socket} ${2} ${3} ${4} ${5} ${6}" >> $1
+    pckt_data=("$@")
+    init_log="[${port}] [${timestamp}] [${socket}]"
+    
+    for (( l=0;l<="$(( ${#pckt_data[@]} - 1 ))";l++ ));
+    do
+	 init_log+=" [${pckt_data[$l]}]"
+    done
+    
+    echo "${init_log}" >> $path_log
 }
 
 function tcp_extract_info() {
@@ -288,7 +299,8 @@ function tcp_extract_info() {
     then
 	if [ "$partial_session" -eq 0 ];
 	then
-	    show_message "$path_log" "$T1"
+	    packet_data=("${T1}")
+	    print_log "${packet_data[@]}"
 	    unfinished=1
 	    partial_sessions
 	fi
@@ -297,7 +309,8 @@ function tcp_extract_info() {
     if [[ ("$SY" -eq 1 && "$SA" -eq 1 && "$AK" -eq 1) &&
 	  ("$FN" -eq 1 || "$RT" -eq 1) ]];
     then
-	show_message "$path_log" "$T4" 
+	packet_data=("${T4}")
+	print_log "${packet_data[@]}"
 	if [ "$partial_session" -eq 1 ]; then finished=1; partial_sessions; fi
         for (( k=0;k<="$(( ${#tcp_list[@]} - 1 ))";k++ ));
         do
@@ -315,14 +328,16 @@ function tcp_extract_info() {
 	  "$RT" -eq 0 &&
 	  "$FN" -eq 0 ]];
     then
-        show_message "$path_log" "$T2" 
+        packet_data=("${T2}")
+	print_log "${packet_data[@]}"
     fi
 
     if [[ "$SY" -eq 1 &&
 	  "$SA" -eq 0 &&
 	  "$RT" -eq 1 ]];
     then
-	show_message "$path_log" "$T3"
+	packet_data=("${T3}")
+        print_log "${packet_data[@]}"
     fi
 }
 
@@ -362,7 +377,7 @@ function udp_extract_info() {
     then
 	impact_ip=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort | uniq)
 	impact_port=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "udp.dstport" 2> /dev/null | sort | uniq)
-
+       
     elif [ "$outgoing" -eq 0 ];
     then
 	impact_ip=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort | uniq)
@@ -371,7 +386,8 @@ function udp_extract_info() {
 
     socket="${impact_ip}:${impact_port}"
 
-    show_message "$path_log" "$U1"
+    packet_data=("${U1}")
+    print_log "${packet_data[@]}"
     for (( k=0;k<="$(( ${#udp_list[@]} - 1 ))";k++ ));
     do
 	n_service=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${udp_list[$k]}" 2> /dev/null | wc -l)
@@ -388,8 +404,9 @@ function udp_services_log() {
     if [ "$service" == "dns" ];
     then
 	path_log="./$logs_dir/${logs[7]}"
-	dns "$port"
-	show_message "$path_log" "$query" "$response_t" "$response_n"
+	dns "$port" "$ip_src"
+	packet_data=("${query}" "${r_type}" "${r_name}" "${r_a}" "${r_aaaa}" "${r_txt}")
+	print_log "${packet_data[@]}"
     fi
 }
 
@@ -399,7 +416,8 @@ function tcp_services_log() {
     then
 	path_log="./$logs_dir/${logs[1]}"
         http "$port"
-        show_message "$path_log" "$method" "$uri" "$user_agent" "$mime_type" "$status_code"
+	packet_data=("${method}" "${uri}" "${hostname}" "${user_agent}" "${mime_type}" "${status_code}")
+        print_log "${packet_data[@]}"
 
     elif [ "$service" == "ssl" ];
     then
@@ -551,4 +569,3 @@ else
     echo -e "${red}\n ${err_root} ${default}\n"
     sleep 5
 fi
-
