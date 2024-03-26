@@ -16,6 +16,7 @@ source Colors.sh
 source Messages.sh
 source Files.sh
 source Protocols.sh
+source Print_logs.sh
 
 layer2=1
 layer7=1
@@ -370,7 +371,7 @@ function udp_extract_info() {
 	impact_port=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "udp.dstport" 2> /dev/null | sort | uniq)
     fi
 
-    preparing_log_TU "${U1}"
+    preparing_log_TU "${U1}" }
     for (( k=0;k<="$(( ${#udp_list[@]} - 1 ))";k++ ));
     do
 	n_service=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${udp_list[$k]}" 2> /dev/null | wc -l)
@@ -391,23 +392,11 @@ function preparing_log_TU() {
     do
 	for (( l=0;l<="$(( ${#impact_port[@]} - 1 ))";l++ ));
 	do
-	    packet_data=("${impact_ip[$k]}" "${impact_port[$l]}" "${1}")
-	    print_log "${packet_data[@]}"
+	    log_data=("${impact_ip[$k]}" "${impact_port[$l]}" "${1}")
+	    preparing_log "${log_data[@]}"
+	    print_log "$path_log"
 	done
     done
-}
-
-function print_log() {
-
-    pckt_data=("$@")
-    init_log="[${port}] [${timestamp}]"
-    
-    for (( m=0;m<="$(( ${#pckt_data[@]} - 1 ))";m++ ));
-    do
-	init_log+=" [${pckt_data[$m]}]"
-    done
-
-    echo "${init_log}" >> $path_log
 }
 
 function udp_services_log() {
@@ -415,12 +404,7 @@ function udp_services_log() {
     if [ "$service" == "dns" ];
     then
 	path_log="./$logs_dir/${logs[7]}"
-	dns "$port"
-	for (( l=0;l<="$(( ${#query[@]} - 1 ))";l++ ));
-	do  
-	    packet_data=("${query[$l]}" "${r_a[$l]}" "${r_aaaa[$l]}" "${r_txt[$l]}")
-	    print_log "${packet_data[@]}"
-	done
+	dns "$port" "$path_log"
     fi
 }
 
@@ -429,12 +413,7 @@ function tcp_services_log() {
     if [ "$service" == "http" ];
     then
 	path_log="./$logs_dir/${logs[1]}"
-        http "$port"	
-	for (( l=0;l<="$(( ${#uri[@]} - 1 ))";l++ ));
-	do
-	    packet_data=("${method[$l]}" "${uri[$l]}" "${hostname[$l]}" "${user_agent[$l]}" "${mime_type[$l]}" "${status_code[$l]}")
-            print_log "${packet_data[@]}"
-	done
+        http "$port" "$path_log"
 
     elif [ "$service" == "ssl" ];
     then
