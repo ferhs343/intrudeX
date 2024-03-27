@@ -16,7 +16,6 @@ source Colors.sh
 source Messages.sh
 source Files.sh
 source Protocols.sh
-source Print_logs.sh
 
 layer2=1
 layer7=1
@@ -162,13 +161,11 @@ function working_sessions() {
 	then
 	    tcp=1
 	    udp=0
-	    session_filter="tcp.flags.syn == 1 && tcp.flags.ack == 0"
-	    port_filter="tcp.srcport"
+	    session_filter="tcp.stream"
 	else
 	    udp=1
 	    tcp=0
-	    session_filter="udp"
-	    port_filter="udp.srcport"
+	    session_filter="udp.stream"
 	fi
 	
 	partial_session=0
@@ -176,11 +173,11 @@ function working_sessions() {
 						
 	if [ "$incoming" -eq 0 ];
 	then
-            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src != ${your_ip} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
+            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src != ${your_ip}" -T fields -e "${session_filter}" 2> /dev/null | sort -n | uniq)
 	   
         elif [ "$outgoing" -eq 0 ];
 	then
-            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src == ${your_ip} && ${session_filter}" -T fields -e "${port_filter}" 2> /dev/null)
+            session=$(tshark -r "${general_capture}" -Y "${ip_filter}.src == ${your_ip}" -T fields -e "${session_filter}" 2> /dev/null | sort -n | uniq)
 	fi
 
         if [ "$tcp" -eq 1 ]; then tcp_sessions=($session); else udp_sessions=($session); fi
@@ -220,33 +217,45 @@ function prepare_session() {
 
     if [ "$partial_session" -eq 1 ];
     then	
-	port="${partials[$i]}"
+	stream="${partials[$i]}"
     else
-	if [ "$tcp" -eq 1 ]; then port="${tcp_sessions[$i]}"; else port="${udp_sessions[$i]}"; fi
+	if [ "$tcp" -eq 1 ]; then stream="${tcp_sessions[$i]}"; else stream="${udp_sessions[$i]}"; fi
     fi
 
-    if [ "$port" != "$no_dup" ];
-    then
-	if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
-    fi
-    no_dup=$port
+    if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
+}
+
+function preparing_log() {
+
+    log_data=("$@")
+    log="[${stream}] [${timestamp}]"
+
+    for (( m=0;m<="$(( ${#log_data[@]} - 1 ))";m++ ));
+    do
+        log+=" [${log_data[$m]}]"
+    done
+}
+
+function print_log() {
+
+    echo "${log}" >> $1
 }
 
 function tcp_extract_info() {
 
     path_log="./$logs_dir/${logs[0]}"
-    flags=$(tshark -r "${general_capture}" -Y "tcp.port == ${port}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
+    flags=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${stream}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq | tr -d '0x')
     flags_array=($flags)
 
     if [ "$incoming" -eq 0 ];
     then
-	impact_ip=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "${ip_filter}.src" 2> /dev/null)
-	impact_port=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "tcp.dstport" 2> /dev/null)
+	impact_ip=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${stream} && ${ip_filter}.src != ${your_ip}" -T fields -e "${ip_filter}.src" 2> /dev/null)
+	impact_port=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${stream} && ${ip_filter}.src != ${your_ip}" -T fields -e "tcp.dstport" 2> /dev/null)
 
     elif [ "$outgoing" -eq 0 ];
     then
-	impact_ip=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort | uniq)
-	impact_port=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq)
+	impact_ip=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${stream} && ${ip_filter}.dst != ${your_ip}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort | uniq)
+	impact_port=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${stream} && ${ip_filter}.dst != ${your_ip}" -T fields -e "tcp.dstport" 2> /dev/null | sort | uniq)
     fi
     
     add=0
@@ -290,7 +299,9 @@ function tcp_extract_info() {
     then
 	if [ "$partial_session" -eq 0 ];
 	then
-	    preparing_log_TU "${T1}"
+	    data=("$impact_ip" "$impact_port" "$T1")
+	    preparing_log "${data[@]}"
+	    print_log "$path_log"
 	    unfinished=1
 	    partial_sessions
 	fi
@@ -299,11 +310,13 @@ function tcp_extract_info() {
     if [[ ("$SY" -eq 1 && "$SA" -eq 1 && "$AK" -eq 1) &&
 	  ("$FN" -eq 1 || "$RT" -eq 1) ]];
     then
-	preparing_log_TU "${T4}"
+        data=("$impact_ip" "$impact_port" "$T4")
+	preparing_log "${data[@]}"
+	print_log "$path_log"
 	if [ "$partial_session" -eq 1 ]; then finished=1; partial_sessions; fi
         for (( k=0;k<="$(( ${#tcp_list[@]} - 1 ))";k++ ));
         do
-            n_service=$(tshark -r "${general_capture}" -Y "tcp.port == ${port} && ${tcp_list[$k]}" 2> /dev/null | wc -l)
+            n_service=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${stream} && ${tcp_list[$k]}" 2> /dev/null | wc -l)
             if [ "$(( n_service ))" -gt 0 ];
             then
 		service="${tcp_list[$k]}"
@@ -317,14 +330,26 @@ function tcp_extract_info() {
 	  "$RT" -eq 0 &&
 	  "$FN" -eq 0 ]];
     then
-        preparing_log_TU "${T2}"
+        data=("$impact_ip" "$impact_port" "$T2")
+	preparing_log "${data[@]}"
+        print_log "$path_log"
     fi
 
     if [[ "$SY" -eq 1 &&
 	  "$SA" -eq 0 &&
 	  "$RT" -eq 1 ]];
     then
-	preparing_log_TU "${T3}"
+        data=("$impact_ip" "$impact_port" "$T3")
+        preparing_log "${data[@]}"
+        print_log "$path_log"
+    fi
+
+    if [[ ("$AK" -eq 1) &&
+          ("$SY" -eq 0 && "$SA" -eq 0) ]];
+    then
+        data=("$impact_ip" "$impact_port" "$T5")
+	preparing_log "${data[@]}"
+	print_log "$path_log"
     fi
 }
 
@@ -334,13 +359,13 @@ function partial_sessions() {
     then
 	for (( k=0;k<="$(( ${#partials[@]} - 1 ))";k++ ));
 	do
-            if [[ "$port" != "${partials[$k]}" &&
+            if [[ "$stream" != "${partials[$k]}" &&
         	  "$unfinished" -eq 1 ]];
 	    then
 		add=$((add+1))
 	    fi
 	
-	    if [[ "$port" == "${partials[$k]}" &&
+	    if [[ "$stream" == "${partials[$k]}" &&
 		  "$finished" -eq 1 ]];
 	    then
 		unset "partials[k]"
@@ -352,7 +377,7 @@ function partial_sessions() {
     if [[ ("${#partials[@]}" -lt 1 && "$unfinished" -eq 1) ||
 	  ("$(( add - 1 ))" -eq "$(( ${#partials[@]} - 1 ))") ]];
     then
-	partials+=($port)
+	partials+=($stream)
     fi
 }
 
@@ -362,19 +387,21 @@ function udp_extract_info() {
 
     if [ "$incoming" -eq 0 ];
     then
-	impact_ip=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort | uniq)
-	impact_port=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.src != ${your_ip}" -T fields -e "udp.dstport" 2> /dev/null | sort | uniq)
+	impact_ip=$(tshark -r "${general_capture}" -Y "udp.stream eq ${stream} && ${ip_filter}.src != ${your_ip}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort | uniq)
+	impact_port=$(tshark -r "${general_capture}" -Y "udp.stream eq ${stream} && ${ip_filter}.src != ${your_ip}" -T fields -e "udp.dstport" 2> /dev/null | sort | uniq)
        
     elif [ "$outgoing" -eq 0 ];
     then
-	impact_ip=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort | uniq)
-	impact_port=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${ip_filter}.dst != ${your_ip}" -T fields -e "udp.dstport" 2> /dev/null | sort | uniq)
+	impact_ip=$(tshark -r "${general_capture}" -Y "udp.stream eq ${stream} && ${ip_filter}.dst != ${your_ip}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort | uniq)
+	impact_port=$(tshark -r "${general_capture}" -Y "udp.stream eq ${stream} && ${ip_filter}.dst != ${your_ip}" -T fields -e "udp.dstport" 2> /dev/null | sort | uniq)
     fi
 
-    preparing_log_TU "${U1}" }
+    data=("$impact_ip" "$impact_port" "$U1")
+    preparing_log "${data[@]}"
+    print_log "$path_log"
     for (( k=0;k<="$(( ${#udp_list[@]} - 1 ))";k++ ));
     do
-	n_service=$(tshark -r "${general_capture}" -Y "udp.port == ${port} && ${udp_list[$k]}" 2> /dev/null | wc -l)
+	n_service=$(tshark -r "${general_capture}" -Y "udp.stream eq ${stream} && ${udp_list[$k]}" 2> /dev/null | wc -l)
         if [ "$(( n_service ))" -gt 0 ];
         then
 	    service="${udp_list[$k]}"
@@ -383,28 +410,24 @@ function udp_extract_info() {
     done
 }
 
-function preparing_log_TU() {
-
-    impact_ip=($impact_ip)
-    impact_port=($impact_port)
-    
-    for (( k=0;k<="$(( ${#impact_ip[@]} - 1 ))";k++ ));
-    do
-	for (( l=0;l<="$(( ${#impact_port[@]} - 1 ))";l++ ));
-	do
-	    log_data=("${impact_ip[$k]}" "${impact_port[$l]}" "${1}")
-	    preparing_log "${log_data[@]}"
-	    print_log "$path_log"
-	done
-    done
-}
-
 function udp_services_log() {
 
     if [ "$service" == "dns" ];
     then
 	path_log="./$logs_dir/${logs[7]}"
-	dns "$port" "$path_log"
+	dns "$stream"
+	query=($query)
+	r_a=($r_a)
+	r_aaaa=($r_aaaa)
+	r_txt=($r_txt)
+	c_name=($c_name)
+
+	for (( l=0;l<="$(( ${#query[@]} - 1 ))";l++ ));
+	do
+            data=("${query[$l]}" "${r_a[$l]}" "${r_aaaa[$l]}" "${r_txt[$l]}" "${c_name[$l]}")
+            preparing_log "${data[@]}"
+	    print_log "$path_log"
+	done
     fi
 }
 
@@ -413,7 +436,21 @@ function tcp_services_log() {
     if [ "$service" == "http" ];
     then
 	path_log="./$logs_dir/${logs[1]}"
-        http "$port" "$path_log"
+        http "$stream"
+	uri=($uri)
+	method=($method)
+	hostname=($hostname)
+	user_agent=($user_agent)
+	mime_type_rq=($mime_type_rq)
+	mime_type_rp=($mime_type_rp)
+	status_code=($status_code)
+
+	for (( l=0;l<="$(( ${#uri[@]} - 1 ))";l++ ));
+	do
+            data=("${method[$l]}" "${uri[$l]}" "${hostname[$l]}" "${user_agent[$l]}" "${mime_type_rq[$l]}" "${mime_type_rp[$l]}" "${status_code[$l]}")
+            preparing_log "${data[@]}"
+	    print_log "$path_log"
+	done
 
     elif [ "$service" == "ssl" ];
     then
@@ -535,7 +572,7 @@ then
 		ip_filter="ipv6"
 	    fi
 	    
-	    your_mac=$(ifconfig $net_interface | grep 'eth' | awk '{print $2}')
+	    your_mac=$(ifconfig $net_interface | grep 'ether' | awk '{print $2}')
 	    
 	    trap killer SIGINT
 	    clear
