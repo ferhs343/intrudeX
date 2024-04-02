@@ -52,5 +52,8 @@ subdirectories=(
 )
 
 general_capture=".general.pcap"
-whitelist_file_4="./whitelist4.txt"
-whitelist_file_6="./whitelist6.txt"
+
+filter_files=(
+    './service_filter.txt'
+    './domain_filter.txt'
+)
