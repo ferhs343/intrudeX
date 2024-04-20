@@ -14,6 +14,8 @@
 
 pcaps_dir="PCAPS"
 logs_dir="LOGS"
+logs_in_process=".logs_in_process"
+procesing_logs="./$logs_dir/$logs_in_process/.logs_in_process.log"
 
 out_logs=(
     'sessions.log'
