@@ -19,8 +19,6 @@ source Protocols.sh
 
 layer2=1
 layer7=1
-ipv4=1
-ipv6=1
 incoming=1
 outgoing=1
 
@@ -31,15 +29,20 @@ arg=$1
 arg2=$3
 arg3=$4
 arg4=$5
+arg5=$6
 pid_sniffer=""
 
 function killer() {
-    
+
+    echo -e "\n Process disrupted, exiting.... "
     kill $pid_sniffer
+    
     for file in $(ls -a .*.pcap.gz);
     do
 	rm $file
     done
+    
+    sleep 3
     exit
 }
 
@@ -51,11 +54,11 @@ function builder_filters() {
 	j=0
         n_elements="$(cat ${filter_files[$i]} | wc -l)"
 	
-	if [ "$n_elements" -gt 0 ];
+	if [ "$n_elements" -gt 1 ];
 	then
 	    init_keyword="and not("
 	    final_keyword=")"
-	    for element in $(cat "${filter_files[$i]}");
+	    for element in $(cat "${filter_files[$i]}" | grep -v "#");
 	    do
 	        if [[ "${filter_files[$i]}" =~ "./host_filter" ]];
 	        then
@@ -131,12 +134,12 @@ function show_help() {
     echo -e "\n\t -all, --execute-all: Generate traffic logs and execute hunter mode.\n${default}"
 }
 
-function working_sessions() {
+function sessions() {
 
     tcp_streams=()
     udp_streams=()
     partials=()
-    ch=0
+    turn=0
 
     #List of TCP protocolss where TTP Tracker performs threat hunting in l7 option
     tcp_list=(
@@ -181,7 +184,7 @@ function working_sessions() {
     
     while true;
     do
-	if [ "$((ch % 2))" -eq 0 ];
+	if [ "$((turn % 2))" -eq 0 ];
 	then
 	    tcp=1
 	    udp=0
@@ -191,7 +194,8 @@ function working_sessions() {
 	    tcp=0
 	    stream_filter="udp.stream"
 	fi
-	
+
+	mechanism_one=0
 	partial_session=0
 	if [ "$tcp" -eq 1 ]; then ini="${#tcp_streams[@]}"; else ini="${#udp_streams[@]}"; fi
 
@@ -207,11 +211,21 @@ function working_sessions() {
 	
 	if [ "${fin}" -ne "${ini}" ];
 	then
-	    #All sessions
-            for (( i="${ini}";i<="$(( ${fin} - 1 ))";i++ ));
-	    do
-	        src_check
-	    done
+	    if [ "$((fin - ini))" -gt 5 ];
+	    then
+		#Begin log mechanism 1
+		# > 5 streams per turn
+		mechanism_one=1
+	        mechanism_one
+	    else
+		#Begin log mechanism 2
+		# < 5 streams per turn
+		for (( i="${ini}";i<="$(( ${fin} - 1 ))";i++ ));
+		do
+		    sleep 0.3
+	            mechanism_two
+		done
+	    fi
 	fi
 
 	if [[ "${#partials[@]}" -gt 0 &&
@@ -221,17 +235,58 @@ function working_sessions() {
 	    partial_session=1
 	    for (( i=0;i<="$(( ${#partials[@]} - 1 ))";i++ ));
 	    do
+		sleep 0.3
 	        prepare_session
 	    done
 	fi
 
-	sleep 0.5
-	ch=$((ch+1))
+	sleep 2
+	turn=$((turn+1))
     done
 }
 
-function src_check() {
+function mechanism_one() {
+    
+    if [ "$tcp" -eq 1 ];
+    then
+	stream_init="${tcp_streams[$ini - 1]}"
+	stream_fin="${tcp_streams[$fin - 1]}"
+	fast_tcp "$aux_filter" "$stream_init" "$stream_fin" "$procesing_logs"	
+    else
+	stream_init="${udp_streams[$ini - 1]}"
+	stream_fin="${udp_streams[$fin - 1]}"
+        fast_udp "$aux_filter" "$stream_init" "$stream_fin" "$procesing_logs"
+    fi
 
+    n=$(cat $procesing_logs | wc -l)
+    if [ "$((n))" -lt 500 ];
+    then
+        file=$procesing_logs
+	if [ "$tcp" -eq 1 ];
+	then
+            tcp_extract_info
+	else
+	    udp_extract_info
+	fi
+    else
+        split $procesing_logs -l 500 trim
+        mv trim* $logs_dir/$logs_in_process
+	    
+        for file in $(ls $logs_dir/$logs_in_process/trim*);
+        do
+	    if [ "$tcp" -eq 1 ];
+	    then
+      		tcp_extract_info
+	    else
+		udp_extract_info
+	    fi
+	    rm $file
+	done
+    fi
+}
+
+function mechanism_two() {
+    
     if [ "$tcp" -eq 1 ]; then stream="${tcp_streams[$i]}"; else stream="${udp_streams[$i]}"; fi
     src=$(tshark -r "${general_capture}" -Y "${stream_filter} eq ${stream}" -T fields -e "${ip_filter}.src" 2> /dev/null | head -n 1)
     
@@ -240,6 +295,13 @@ function src_check() {
     then
 	prepare_session
     fi
+}
+
+function prepare_session() {
+
+    if [ "$partial_session" -eq 1 ]; then stream="${partials[$i]}"; fi
+    timestamp=$(tshark -r "${general_capture}" -Y "${stream_filter} eq ${stream}" -T fields -e "frame.time" 2> /dev/null | head -n 1 | tr ' ' '-')
+    if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
 }
 
 function used_service() {
@@ -261,13 +323,6 @@ function used_service() {
     done
 }
 
-function prepare_session() {
-
-    if [ "$partial_session" -eq 1 ]; then stream="${partials[$i]}"; fi
-    timestamp=$(tshark -r "${general_capture}" -Y "${stream_filter} eq ${stream}" -T fields -e "frame.time" 2> /dev/null | head -n 1 | tr ' ' '-')
-    if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
-}
-
 function preparing_log() {
 
     log_data=("$@")
@@ -287,94 +342,120 @@ function print_log() {
 function tcp_extract_info() {
 
     path_log="./$logs_dir/${logs[0]}"
-    flags=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${stream}" -T fields -e "tcp.flags" 2> /dev/null | sort | uniq)
-    flags=($flags)
-
-    if [ "$outgoing" -eq 0 ];
-    then
-	aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
-    else
-	aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
-    fi
 
     flags_history=""
     #TCP Flags
     SY=0
     SA=0
     AK=0
-    PSHA=0
-    FNA=0
+    PSH=0
     FN=0
     RT=0
-    RTA=0
-    NULL=0
-    FUP=0
+    URG=0
+    flags=()
 
-    for (( j=0;j<="$(( ${#flags[@]} - 1 ))";j++ ));
-    do
-	flag="${flags[$j]}"
+    if [ "$mechanism_one" -eq 1 ];
+    then
+	for stream in $(cat $file | awk '{print $1}' | sort -n -u);
+	do
+	    extract_flags=$(cat $file | awk "\$1 == \"$stream\" {print \$NF}" | sort -u | awk '{print substr($0,length($0)-1)}')
+	    flags=($extract_flags)
+	    timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
+
+	    for (( j=0;j<="$(( ${#flags[@]} - 1 ))";j++ ));
+	    do
+		if [ "${flags[$j]}" == "02" ];
+		then
+		    SY=1
+		    flags_history+="Syn "
+		fi
+
+		if [ "${flags[$j]}" == "12" ];
+		then
+		    SA=1
+		    flags_history+="Synack "
+		fi
+
+		if [ "${flags[$j]}" == "18" ];
+		then
+		    PSH=1
+		    flags_history+="Psh "
+		fi
+		
+		if [ "${flags[$j]}" == "11" ];
+		then
+		    FN=1
+		    flags_history+="Fin "
+		fi 
+	    done
+
+	    awk -F'\t' -v stream="$stream" -v flags="$flags_history" -v ts="$timestamp" '$1 == stream && ($3 == "68:1d:ef:37:46:d3" || $4 == "10.30.1.79") {print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["flags"]"}' $file | sort -u >> $path_log
+	    flags_history=""
+	done
+    else
 	
-        if [ "$flag" == "0x0002" ];
+	if [ "$(tshark -r ${general_capture} -Y \
+             "tcp.stream eq ${stream} && tcp.flags.syn == 1" \ 
+             2>/dev/null | wc -l)" -gt 0 ];
 	then
             SY=1
-	    flags_history+="Syn"
+            flags_history+="Syn"
 	fi
 	
-	if [ "$flag" == "0x0012" ];
-        then
-	    SA=1
-	    flags_history+="Synack"
+	if [ "$(tshark -r ${general_capture} -Y \
+             "tcp.stream eq ${stream} && tcp.flags.syn == 1 && tcp.flags.ack == 1" \
+             2>/dev/null | wc -l)" -gt 0 ];
+	then
+            SA=1
+            flags_history+="Synack"
 	fi
 	    
-	if [ "$flag" == "0x0010" ];
+	if [ "$(tshark -r ${general_capture} -Y \
+             "tcp.stream eq ${stream} && tcp.flags.syn == 0 && tcp.flags.ack == 1" \ 
+             2>/dev/null | wc -l)" -gt 0 ];
 	then
-	    AK=1
-	    flags_history+="Ack"
+            AK=1
+            flags_history+="Ack"
 	fi
-	    
-	if [ "$flag" == "0x0018" ];
-	then
-	    PSHA=1
-	    flags_history+="Pshack"
-	fi
-	
-	if [ "$flag" == "0x0011" ];
-	then
-	    FNA=1
-	    flags_history+="Finack"
-	fi
-	
-	if [ "$flag" == "0x0001" ];
-	then
-	    FN=1
-	    flags_history+="Fin"
-	fi
-	
-	if [ "$flag" == "0x0014" ];
-	then
-	    RTA=1
-	    flags_history+="Rstack"
-        fi
-	
-	if [ "$flag" == "0x0004" ];
-	then
-	    RT=1
-	    flags_history+="Rst"
-	fi
-	
-	if [ "$flag" == "0x0000" ];
-	then
-	    NULL=1
-	    flags_history+="NULL"
-	fi
-	
-	if [ "$flag" == "0x0029" ];
-	then
-	    FUP=1
-	    flags_history+="Urgfinpsh"
-	fi
-    done
 
+	if [ "$(tshark -r ${general_capture} -Y \
+             "tcp.stream eq ${stream} && tcp.flags.push == 1" \
+             2>/dev/null | wc -l)" -gt 0 ];
+	then
+            PSH=1
+            flags_history+="Psh"
+	fi
+	
+	if [ "$(tshark -r ${general_capture} -Y \
+             "tcp.stream eq ${stream} &&  tcp.flags.fin == 1"\
+              2>/dev/null | wc -l)" -gt 0 ];
+	then
+            FN=1
+            flags_history+="Fin"
+	fi
+	
+	if [ "$(tshark -r ${general_capture} -Y \
+             "tcp.stream eq ${stream} && tcp.flags.rst == 1" \ 
+             2>/dev/null | wc -l)" -gt 0 ];
+	then
+            RT=1
+            flags_history+="Rst"
+	fi
+
+	if [ "$(tshark -r ${general_capture} -Y \
+             "tcp.stream eq ${stream} && tcp.flags.urg == 1" \
+             2>/dev/null | wc -l)" -gt 0 ];
+	then
+            URG=1
+            flags_history+="Urg"
+	fi
+
+	tcp_conn_status
+    fi
+}
+
+function tcp_conn_status() {
+      
     tcp "$stream" "$aux_filter"
     if [ "$partial_session" -eq 0 ];
     then
@@ -384,7 +465,7 @@ function tcp_extract_info() {
     fi
 	
     if [[ ("$SY" -eq 1 && "$SA" -eq 1 && "$AK" -eq 1) &&
-	  ("$FNA" -eq 0 && "$RTA" -eq 0) ]];
+	  ("$FN" -eq 0 && "$RT" -eq 0) ]];
     then
 	if [ "$partial_session" -eq 0 ];
 	then
@@ -393,7 +474,7 @@ function tcp_extract_info() {
     fi
     
     if [[ ("$SY" -eq 1 && "$SA" -eq 1 && "$AK" -eq 1) &&
-	  ("$FNA" -eq 1 || "$RTA" -eq 1) ]];
+	  ("$FN" -eq 1 || "$RT" -eq 1) ]];
     then
 	if [ "$partial_session" -eq 1 ];
 	then
@@ -422,18 +503,21 @@ function udp_extract_info() {
 
     path_log="./$logs_dir/${logs[0]}"
 
-    if [ "$outgoing" -eq 0 ];
+    if [ "$mechanism_one" -eq 1 ];
     then
-	aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
+	for stream in $(cat $file | awk '{print $1}' | sort -n -u);
+	do
+	    timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
+	    awk -F'\t' -v stream="$stream" -v ts="$timestamp" -v msg="$U1" '$1 == stream && ($3 == "68:1d:ef:37:46:d3" || $4 == "10.30.1.79") {print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["msg"]"}' $file | sort -u >> $path_log
+	done
     else
-	aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
+	
+	udp "$stream" "$aux_filter" 
+	data=("$src_mac" "$src_ip" "$src_port" "$dst_mac" "$dst_ip" "$dst_port" "$U1")
+	preparing_log "${data[@]}"
+	print_log "$path_log"
+	used_service "${udp_list[@]}"
     fi
-
-    udp "$stream" "$aux_filter" 
-    data=("$src_mac" "$src_ip" "$src_port" "$dst_mac" "$dst_ip" "$dst_port" "$U1")
-    preparing_log "${data[@]}"
-    print_log "$path_log"
-    used_service "${udp_list[@]}"
 }
 
 function udp_services_log() {
@@ -526,6 +610,7 @@ then
 	then
             start_l7=$((start_l7+1))
 	    start_l2=$((start_l2+1))
+	    your_mac=$(ifconfig $net_interface | grep 'ether' | awk '{print $2}')
 	fi
 	
        if [ "$arg2" == "--layer7" ] ||
@@ -538,13 +623,17 @@ then
 	      [ "$arg3" == "--ipv6" ]
 	   then
 	       start_l7=$((start_l7+1))
-	       ipv6=0
+	       your_ip=$(ifconfig $net_interface | grep -w 'inet6' | awk '{print $2}')
+	       filter_files+=('./host_filter6.txt')
+	       ip_filter="ipv6"
 		
 	   elif [ "$arg3" == "-4" ] ||
 		[ "$arg3" == "--ipv4" ]
 	   then
 	       start_l7=$((start_l7+1))
-	       ipv4=0
+	       your_ip=$(ifconfig $net_interface | grep -w 'inet' | awk '{print $2}')
+	       filter_files+=('./host_filter4.txt')
+	       ip_filter="ip"
 	   fi
 	    
         elif [ "$arg2" == "--layer2" ] ||
@@ -561,6 +650,7 @@ then
 	    start_l7=$((start_l7+1))
 	    logs=("${in_logs[@]}")
 	    incoming=0
+	    aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
 	    
 	elif [ "$arg4" == "--outgoing" ] ||
 	     [ "$arg4" == "-out" ];
@@ -569,6 +659,7 @@ then
 	    start_l7=$((start_l7+1))
 	    logs=("${out_logs[@]}")
 	    outgoing=0
+	    aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
 	fi
 	   
 	if [[ "$start_l7" -eq 4 ||
@@ -584,21 +675,7 @@ then
 		    touch "./$logs_dir/${logs[$i]}"
 		fi
 	    done
-	    
-	    if [ "$ipv4" -eq 0 ];
-	    then
-		your_ip=$(ifconfig $net_interface | grep -w 'inet' | awk '{print $2}')
-	        filter_files+=('./host_filter4.txt')
-	        ip_filter="ip"
-		
-	    elif [ "$ipv6" -eq 0 ];
-	    then
-		your_ip=$(ifconfig $net_interface | grep -w 'inet6' | awk '{print $2}')
-	        filter_files+=('./host_filter6.txt')
-		ip_filter="ipv6"
-	    fi
-	    
-	    your_mac=$(ifconfig $net_interface | grep 'ether' | awk '{print $2}')
+
 	    default_general_filter="ether host ${your_mac} or host ${your_ip}"
 	    default_service_filter=""
 	    default_domain_filter=""
@@ -622,14 +699,13 @@ then
 		    default_domain_filter="${default_domain_filter} ${init_keyword} ${parts[*]} ${final_keyword}"
 		fi
 	    done
- 
-	    exit
+
 	    sniffer
 	    echo -e "${green}\n [+] I'm Hunting....${default}"
 	    
 	    if [ "$layer7" -eq 0 ];
 	    then
-		working_sessions
+		sessions
 		
 	    elif [ "$layer2" -eq 0];
 	    then
