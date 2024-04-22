@@ -26,7 +26,7 @@ function tcp() {
 
 function fast_tcp() {
 
-    tshark -r "${general_capture}" -Y "${1} && tcp.stream >= ${2} && tcp.stream <= ${3}" \
+    tshark -r "${general_capture}" -Y "${1} && (tcp.stream >= ${2} && tcp.stream <= ${3})" \
     -T fields -e "tcp.stream" \
     -e "frame.time" \
     -e "eth.src" \
@@ -50,7 +50,7 @@ function udp() {
 
 function fast_udp() {
 
-    tshark -r "${general_capture}" -Y "${1} && udp.stream >= ${2} && udp.stream <= ${3}" \
+    tshark -r "${general_capture}" -Y "${1} && (udp.stream >= ${2} && udp.stream <= ${3})" \
     -T fields \
     -e "udp.stream" \
     -e "frame.time" \
