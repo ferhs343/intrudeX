@@ -36,11 +36,16 @@ function killer() {
 
     echo -e "\n Process disrupted, exiting.... "
     kill $pid_sniffer
-    
-    for file in $(ls -a .*.pcap.gz);
-    do
-	rm $file
-    done
+    rm -f $procesing_logs
+    rm -f $general_capture
+
+    if [ $(ls "$logs_dir/$logs_in_process/" | grep 'trim' | wc -l) -gt 0 ];
+    then
+	for file in $(ls $logs_dir/$logs_in_process/trim*);
+	do
+	    rm -f $file
+	done
+    fi
     
     sleep 3
     exit
@@ -249,15 +254,15 @@ function mechanism_one() {
     
     if [ "$tcp" -eq 1 ];
     then
-	stream_init="${tcp_streams[$ini - 1]}"
+	stream_init="${tcp_streams[$ini]}"
 	stream_fin="${tcp_streams[$fin - 1]}"
 	fast_tcp "$aux_filter" "$stream_init" "$stream_fin" "$procesing_logs"	
     else
-	stream_init="${udp_streams[$ini - 1]}"
+	stream_init="${udp_streams[$ini]}"
 	stream_fin="${udp_streams[$fin - 1]}"
         fast_udp "$aux_filter" "$stream_init" "$stream_fin" "$procesing_logs"
     fi
-
+    
     n=$(cat $procesing_logs | wc -l)
     if [ "$((n))" -lt 500 ];
     then
@@ -389,7 +394,13 @@ function tcp_extract_info() {
 		fi 
 	    done
 
-	    awk -F'\t' -v stream="$stream" -v flags="$flags_history" -v ts="$timestamp" '$1 == stream && ($3 == "68:1d:ef:37:46:d3" || $4 == "10.30.1.79") {print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["flags"]"}' $file | sort -u >> $path_log
+	    awk -F'\t' \
+		-v your_ip="$your_ip" \
+		-v your_mac="$your_mac" \
+		-v stream="$stream" \
+		-v flags="$flags_history" \
+		-v ts="$timestamp" '$1 == stream && ($3 == your_mac || $4 == your_ip) \
+		{print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["flags"]"}' $file | sort -u >> $path_log
 	    flags_history=""
 	done
     else
@@ -508,7 +519,12 @@ function udp_extract_info() {
 	for stream in $(cat $file | awk '{print $1}' | sort -n -u);
 	do
 	    timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
-	    awk -F'\t' -v stream="$stream" -v ts="$timestamp" -v msg="$U1" '$1 == stream && ($3 == "68:1d:ef:37:46:d3" || $4 == "10.30.1.79") {print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["msg"]"}' $file | sort -u >> $path_log
+	    awk -F'\t' \
+		-v your_ip="$your_ip" \
+		-v your_mac="$your_mac" \
+		-v stream="$stream" \
+		-v ts="$timestamp" -v msg="$U1" '$1 == stream && ($3 == your_mac || $4 == your_ip) \
+		{print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["msg"]"}' $file | sort -u >> $path_log
 	done
     else
 	
