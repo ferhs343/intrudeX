@@ -26,8 +26,9 @@ function tcp() {
 
 function fast_tcp() {
 
-    tshark -r "${general_capture}" -Y "${1} && (tcp.stream >= ${2} && tcp.stream <= ${3})" \
-    -T fields -e "tcp.stream" \
+    tshark -r "${general_capture}" -Y "(tcp.stream >= ${1} && tcp.stream <= ${2})" \
+    -T fields \
+    -e "tcp.stream" \
     -e "frame.time" \
     -e "eth.src" \
     -e "ip.src" \
@@ -35,7 +36,7 @@ function fast_tcp() {
     -e "eth.dst" \
     -e "ip.dst" \
     -e "tcp.dstport" \
-    -e "tcp.flags" 2> /dev/null > $4
+    -e "tcp.flags" &> /dev/null > $3
 }
 
 function udp() {
@@ -50,7 +51,7 @@ function udp() {
 
 function fast_udp() {
 
-    tshark -r "${general_capture}" -Y "${1} && (udp.stream >= ${2} && udp.stream <= ${3})" \
+    tshark -r "${general_capture}" -Y "(udp.stream >= ${1} && udp.stream <= ${2})" \
     -T fields \
     -e "udp.stream" \
     -e "frame.time" \
@@ -59,7 +60,7 @@ function fast_udp() {
     -e "udp.srcport" \
     -e "eth.dst" \
     -e "ip.dst" \
-    -e "udp.dstport" 2> /dev/null > $4
+    -e "udp.dstport" &> /dev/null > $3
 }
 
 function http() {
