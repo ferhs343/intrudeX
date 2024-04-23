@@ -56,11 +56,17 @@ function frame() {
 #main banner
 function banner() {
 
-    echo -e "${purple}\n"
-    echo -e '   __ __| __ __| _ \  __ __|               |             ' 
-    echo -e '      |      |   __/     |   _| _` |   _|  | /   -_)   _| '                           
-    echo -e "     _|     _|  _|      _| _| \__,_| \__| _\_\ \___| _|          ${green} By: Luis Herrera"
-    echo -e "                                                                  V 1.0.0 ${yellow}\n"
+    echo -e "${yellow}"
+    echo -e '                                                                  ___/ /    cf cf '
+    echo -e '                                                                 / .__. \ '
+    echo -e '                                                                 \  \/  / '                                                                 
+    echo -e "   __ __| __ __| _ \  __ __|               |                 '___/      \  "  
+    echo -e '      |      |   __/     |   _| _` |   _|  | /   -_)   _|     \-         )  '                           
+    echo -e "     _|     _|  _|      _| _| \__,_| \__| _\_\ \___| _|        \________/"
+    echo -e "                                                           ________|_|________    "
+    echo -e '                                                                   " " '
+    echo -e "                                 ${cyan} By: Luis Herrera :)"
+    echo -e "                                        V 1.0.0 ${red}\n"
     echo -e " +--------------------------------------------------------------------------------------+"
     echo -e " | Welcome to TTP Tracker!!, the ideal tool to hunt hidden threats. Happy hunting!! :D  |"
     echo -e " +--------------------------------------------------------------------------------------+"
@@ -172,7 +178,7 @@ function tool_check() {
 	    main_menu
         fi
     else
-	 echo -e "${green}\n [+] The necessary tools are installed.${default}"
+	 echo -e "${green} [+] The necessary tools are installed.${default}"
     fi
 }
 
