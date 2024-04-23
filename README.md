@@ -1,7 +1,7 @@
 # TTP Tracker
 CONTINUA EN DESARROLLO .....
 
-![imagen](https://github.com/ferhs343/intrudeX/assets/114626248/7edb7a50-3228-4329-8703-f11f47e400d0)
+![image](https://github.com/ferhs343/intrudeX/assets/114626248/a81b3cb2-c564-4f18-b2d2-c90b1ecf9f6f)
 
 
 
