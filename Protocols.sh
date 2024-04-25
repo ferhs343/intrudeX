@@ -16,7 +16,7 @@ source Files.sh
 
 function tcp() {
 
-    src_mac=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${1} && ${2}" -T fields -e "eth.src" 2> /dev/null | sort -u) 
+    src_mac=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${1} && ${2}" -T fields -e "eth.src" 2> /dev/null | sort -u)
     src_ip=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${1} && ${2}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort -u)
     src_port=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${1} && ${2}" -T fields -e "tcp.srcport" 2> /dev/null | sort -u)
     dst_mac=$(tshark -r "${general_capture}" -Y "tcp.stream eq ${1} && ${2}" -T fields -e "eth.dst" 2> /dev/null | sort -u)
@@ -41,7 +41,7 @@ function fast_tcp() {
 
 function udp() {
 
-    src_mac=$(tshark -r "${general_capture}" -Y "udp.stream eq ${1} && ${2}" -T fields -e "eth.src" 2> /dev/null | sort -u) 
+    src_mac=$(tshark -r "${general_capture}" -Y "udp.stream eq ${1} && ${2}" -T fields -e "eth.src" 2> /dev/null | sort -u)
     src_ip=$(tshark -r "${general_capture}" -Y "udp.stream eq ${1} && ${2}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort -u)
     src_port=$(tshark -r "${general_capture}" -Y "udp.stream eq ${1} && ${2}" -T fields -e "udp.srcport" 2> /dev/null | sort -u)
     dst_mac=$(tshark -r "${general_capture}" -Y "udp.stream eq ${1} && ${2}" -T fields -e "eth.dst" 2> /dev/null | sort -u)
