@@ -46,10 +46,10 @@ options_attack_detection=(
 )
 
 function frame() {
-    
+
     for (( i=0;i<=70;i++ ))
     do
-	echo -n $1
+        echo -n $1
     done
 }
 
@@ -57,20 +57,20 @@ function frame() {
 function banner() {
 
     echo -e "${yellow}"
-    echo -e '                                                                  ___/ /    cf cf '
-    echo -e '                                                                 / .__. \ '
-    echo -e '                                                                 \  \/  / '                                                                 
-    echo -e "   __ __| __ __| _ \  __ __|               |                 '___/      \  "  
-    echo -e '      |      |   __/     |   _| _` |   _|  | /   -_)   _|     \-         )  '                           
-    echo -e "     _|     _|  _|      _| _| \__,_| \__| _\_\ \___| _|        \________/"
-    echo -e "                                                           ________|_|________    "
-    echo -e '                                                                   " " '
-    echo -e "                                 ${cyan} By: Luis Herrera :)"
+    echo -e '                                                                     ___/ /    cf cf '
+    echo -e '                                                                    / .__. \ '
+    echo -e '                                                                    \  \/  / '
+    echo -e "      __ __| __ __| _ \  __ __|               |                 '___/      \  "
+    echo -e '         |      |   __/     |   _| _` |   _|  | /   -_)   _|     \-         )  '
+    echo -e "        _|     _|  _|      _| _| \__,_| \__| _\_\ \___| _|        \________/"
+    echo -e "                                                              ________|_|________    "
+    echo -e '                                                                      " " '
+    echo -e "                             ${green} By: Luis Herrera (@ferhs343)"
     echo -e "                                        V 1.0.0 ${red}\n"
     echo -e " +--------------------------------------------------------------------------------------+"
     echo -e " | Welcome to TTP Tracker!!, the ideal tool to hunt hidden threats. Happy hunting!! :D  |"
     echo -e " +--------------------------------------------------------------------------------------+"
-    echo -e "${default}"                                               
+    echo -e "${default}"
 }
 
 #prompt
@@ -101,14 +101,14 @@ function error_distribution() {
 }
 
 function create() {
-    
+
     if [[ ! -d $directory ]];
     then
-	mkdir $directory
-	for (( i=0;i<=$n_elements;i++ ));
-	do
-	    mkdir $directory/"${subdirectories[$i]}"
-	done
+        mkdir $directory
+        for (( i=0;i<=$n_elements;i++ ));
+        do
+            mkdir $directory/"${subdirectories[$i]}"
+        done
     fi
 }
 
@@ -119,8 +119,8 @@ function tool_check() {
         'tshark'
         'wget'
         'curl'
-	'jq'
-	'mergecap'
+        'jq'
+        'mergecap'
     )
 
     tool_validator=0
@@ -128,57 +128,57 @@ function tool_check() {
 
     for i in "${required_tools[@]}"
     do
-	if [[ ! $(which $i 2> /dev/null) ]];
-	then
-	    tool_validator=$((validator+1))
-	fi
+        if [[ ! $(which $i 2> /dev/null) ]];
+        then
+            tool_validator=$((validator+1))
+        fi
     done
 
     if [ "$tool_validator" -gt 0 ];
     then
-	tool_validator=0
-	echo -e "${yellow}\n [+] Checking required tools.....${default}"
-	sleep 1
-	for i in "${required_tools[@]}"
-	do
+        tool_validator=0
+        echo -e "${yellow}\n [+] Checking required tools.....${default}"
+        sleep 1
+        for i in "${required_tools[@]}"
+        do
             if [[ $(which $i 2> /dev/null) ]];
             then
-		echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) ${green}[OK]${default}"
-		sleep 1
+                echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) ${green}[OK]${default}"
+                sleep 1
             else
-		echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [MISSING]${default}"
-		no_tool+=("$i")
-		sleep 1
+                echo -e "\n${green} [$i] ${red}Tool is installed $(frame .) [MISSING]${default}"
+                no_tool+=("$i")
+                sleep 1
             fi
-	    n_elements="${#no_tool[@]}"
-	done
+            n_elements="${#no_tool[@]}"
+        done
 
         for tool in "${no_tool[@]}"
         do
-	    echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
+            echo -e "${yellow}\n\n [+] Installing Tool ${green}(${tool})${yellow}, wait a moment.....${default}"
 
-	    apt install -fy $tool &>/dev/null
+            apt install -fy $tool &>/dev/null
 
-	    if [ "$?" -eq 0 ];
-	    then
-		echo -e "${green}\n [+] Installation complete.${default}"
-		tool_validator=$((tool_validator+1))
+            if [ "$?" -eq 0 ];
+            then
+                echo -e "${green}\n [+] Installation complete.${default}"
+                tool_validator=$((tool_validator+1))
                 sleep 1
-	    else	
+            else
                 error_instalation
                 sleep 2
                 main_menu_option_4
-	    fi
+            fi
         done
 
-	if [ "$tool_validator" -eq "$n_elements" ];
-	then
-	    echo -e "${green}\n\n [+] Reloading......${default}"
-	    sleep 2
-	    main_menu
+        if [ "$tool_validator" -eq "$n_elements" ];
+        then
+            echo -e "${green}\n\n [+] Reloading......${default}"
+            sleep 2
+            main_menu
         fi
     else
-	 echo -e "${green} [+] The necessary tools are installed.${default}"
+         echo -e "${cyan} [+] The necessary tools are installed.${default}"
     fi
 }
 
@@ -214,26 +214,26 @@ function attack_detection_option_6() {
 function list_files() {
 
     paths=(
-	"./${directory}/Denial_of_Service"
-	"./${directory}/Web_Attacks"
-	"./${directory}/Brute_Force"
-	"./${directory}/DNS_Tunneling"
-	"./${directory}/Layer_2_Attacks"
+        "./${directory}/Denial_of_Service"
+        "./${directory}/Web_Attacks"
+        "./${directory}/Brute_Force"
+        "./${directory}/DNS_Tunneling"
+        "./${directory}/Layer_2_Attacks"
     )
     count=0
 
     echo -e "${green} $(frame -)\n  PCAPS Saved\n $(frame -)${default}"
-    
+
     for file in $(ls "${paths[$1-1]}")
     do
-	count=$((count+1))
-	echo ""
-	echo -e "${purple}  [+] ${file}${default}"
+        count=$((count+1))
+        echo ""
+        echo -e "${purple}  [+] ${file}${default}"
     done
 
     if [ "$count" -lt 1 ];
     then
-	echo -e "${purple}\n  [+] No files available to analyze yet.${default}"
+        echo -e "${purple}\n  [+] No files available to analyze yet.${default}"
     fi
 }
 
@@ -242,85 +242,85 @@ function load_pcap() {
 
     clear
     banner
-    echo -e "\n ${yellow}[MENU] \n\n${green} [1] Back \n${default}"
+    echo -e "\n ${yellow}[MENU] \n\n${cyan} [1] Back \n${default}"
     check=0
     subdirectory=""
 
     for i in "${subdirectories[@]}"
     do
-	if [ "$i" == 'Denial_of_Service' ];
-	then
-	    if [ "$value" -eq 1 ];
-	    then
-		list_files 1
-		subdirectory=$i
-	    fi
+        if [ "$i" == 'Denial_of_Service' ];
+        then
+            if [ "$value" -eq 1 ];
+            then
+                list_files 1
+                subdirectory=$i
+            fi
 
-	elif [ "$i" == 'Web_Attacks' ];
-	then
-	    if [ "$value" -eq 2 ];
-	    then
-		list_files 2
-		subdirectory=$i
-	    fi
-	       
-	elif [ "$i" == 'Brute_Force' ];
-	then
-	    if [ "$value" -eq 3 ];
-	    then
-		list_files 3
-		subdirectory=$i
-	    fi
-		
-	elif [ "$i" == 'DNS_Tunneling' ];
-	then
-	    if [ "$value" -eq 4 ];
-	    then
-		list_files 4
-		subdirectory=$i
-	    fi
-	    
-	elif [ "$i" == 'Layer_2_Attacks' ];
-	then
-	    if [ "$value" -eq 5 ];
-	    then
-		list_files 5
-		subdirectory=$i
-	    fi
-	    
-	elif [ "$value" -eq 6 ];
-	then
-	    list_files 6
-	    subdirectory=$i
-	fi
+        elif [ "$i" == 'Web_Attacks' ];
+        then
+            if [ "$value" -eq 2 ];
+            then
+                list_files 2
+                subdirectory=$i
+            fi
+
+        elif [ "$i" == 'Brute_Force' ];
+        then
+            if [ "$value" -eq 3 ];
+            then
+                list_files 3
+                subdirectory=$i
+            fi
+
+        elif [ "$i" == 'DNS_Tunneling' ];
+        then
+            if [ "$value" -eq 4 ];
+            then
+                list_files 4
+                subdirectory=$i
+            fi
+
+        elif [ "$i" == 'Layer_2_Attacks' ];
+        then
+            if [ "$value" -eq 5 ];
+            then
+                list_files 5
+                subdirectory=$i
+            fi
+
+        elif [ "$value" -eq 6 ];
+        then
+            list_files 6
+            subdirectory=$i
+        fi
     done
-       
+
     while [ "$check" -eq 0 ];
     do
         echo -e "\n\n${yellow} Enter the PCAP file to analyze.${default}\n"
         prompt_suboption
         read -p "└─────► $(tput setaf 7)" pcap
-	
+
         if [ "$pcap" == "1" ];
         then
             main_menu_option_1
             check=1
-        else  
+        else
             echo -e "\n${green} [+] Loading PCAP [${pcap}] .....${default}\n"
             sleep 2
 
             if [ -f "./$directory/$subdirectory/$pcap" ];
             then
                 echo -e "\n${green} [+] Getting ready....."
-		sleep 1
+                sleep 1
                 detect_${name_suboption}
                 check=1
-            else	
+            else
                 error_load_pcap
                 check=0
             fi
         fi
-	
+
         if [ "$check" -eq 1 ];
         then
             echo -e "\n\n${yellow} Please, if you analyze other PCAP file, enter name of this, otherwise, press 1 for back.${default}\n"
@@ -335,7 +335,7 @@ function main_menu_option_1() {
     flag=0
     clear
     banner
-    echo -e "\n ${yellow}[MENU] \n\n${green} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling \n\n [5] Layer 2 Attacks\n\n [6] Back \n\n ${default}"
+    echo -e "\n ${yellow}[MENU] \n\n${cyan} [1] Denial of Service\n\n [2] Web Attacks \n\n [3] Brute Force\n\n [4] DNS Tunneling \n\n [5] Layer 2 Attacks\n\n [6] Back \n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -346,7 +346,7 @@ function main_menu_option_1() {
         if [[ "$suboption" -gt 6 || "$suboption" -lt 1 ]];
         then
             flag2=1
-        else   
+        else
             flag2=0
         fi
 
@@ -364,7 +364,7 @@ function main_menu_option_1() {
                 fi
             done
         else
-    
+
             error_option
             flag=0
             flag2=0
@@ -390,7 +390,7 @@ function main_menu() {
     clear
     banner
     tool_check
-    echo -e "\n\n ${yellow}[MENU] \n\n${green} [1] Attack detection\n\n [2] Reconnaissance detection\n\n [3] Threat Intelligence\n\n [4] Exit\n\n ${default}"
+    echo -e "\n ${yellow}[MENU] \n\n${cyan} [1] Attack detection\n\n [2] Reconnaissance detection\n\n [3] Threat Intelligence\n\n [4] Exit\n\n ${default}"
     echo -e "${yellow} Please, enter a option${default}\n"
 
     while [ "$flag" -eq 0 ];
@@ -401,7 +401,7 @@ function main_menu() {
         if [[ "$option" -gt 4 || "$option" -lt 1 ]];
         then
             flag2=1
-        else	    
+        else
             flag2=0
         fi
 
@@ -411,7 +411,7 @@ function main_menu() {
             do
                 value="${options[$key]}"
                 name_option=$key
-		
+
                 if [ "$option" == "$value" ];
                 then
                     main_menu_option_${value}
@@ -427,15 +427,15 @@ function main_menu() {
 }
 
 function main() {
-    
+
     #main program
-    if grep -q 'CentOS' /etc/*-release;
+    if grep -q 'Debian' /etc/*-release;
     then
-	clear
-	main_menu
+        clear
+        main_menu
     else
-	error_distribution
-	main_menu_option_4
+        error_distribution
+        main_menu_option_4
     fi
 }
 
