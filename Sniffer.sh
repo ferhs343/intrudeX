@@ -145,6 +145,7 @@ function show_help() {
     echo -e "\n\t ${yellow}[ANALYZE OPTIONS] ${green}"
     echo -e "\n\t -in, --inbound: Incoming traffic."
     echo -e "\n\t -out, --outbound: Outgoing traffic."
+    echo -e "\n\t -bid, --bidirectional: Incoming and outgoing traffic."
     echo -e "\n\t ${yellow}[RUN MODE OPTIONS] ${green}"
     echo -e "\n\t -hunt, --only-hunt: Only hunt threats."
     echo -e "\n\t -logs, --only-logs: Only generate traffic logs."
@@ -284,6 +285,7 @@ function mechanism_one() {
     
     stream_init="${streams[0]}"
     stream_fin=$fin
+    trims=()
     if [ "$tcp" -eq 1 ];
     then
 	fast_tcp "$stream_init" "$stream_fin" "$procesing_logs"	
@@ -302,9 +304,10 @@ function mechanism_one() {
 	    udp_extract_info
 	fi
     else
+
         split $procesing_logs -l 500 trim
         mv trim* $logs_dir/$logs_in_process
-	    
+	
         for file in $(ls $logs_dir/$logs_in_process/trim*);
         do
 	    if [ "$tcp" -eq 1 ];
@@ -313,22 +316,37 @@ function mechanism_one() {
 	    else
 		udp_extract_info
 	    fi
-	    rm $file
 	done
+
+	rm $logs_dir/$logs_in_process/trim*
     fi
 }
 
 function mechanism_two() {
     
     stream="${streams[$i]}"
-    src=$(tshark -r "${general_capture}" \
-		 -Y "${stream_filter} eq ${stream}" \
-		 T fields -e "${ip_filter}.src" \
-		 2> /dev/null | head -n 1)
+    src_ip=$(tshark -r "${general_capture}" \
+		    -Y "${stream_filter} eq ${stream}" \
+		    -T fields -e "${ip_filter}.src" \
+		    2> /dev/null | head -n 1)
+
+    src_mac=$(tshark -r "${general_capture}" \
+		     -Y "${stream_filter} eq ${stream}" \
+		     -T fields -e "$eth.src" \
+		     2> /dev/null | head -n 1)
     
-    if [[ ("$src" == "${your_ip}" && "$outgoing" -eq 0) ||
-	  ("$src" != "${your_ip}" && "$incoming" -eq 0) ]];
+    if [[ (("$src_ip" == "${your_ip}" ||
+	    "$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
+	   (("$src_ip" != "${your_ip}" ||
+	    "$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
     then
+	if [[ "$src_ip" == "${your_ip}" ||
+	      "$src_mac" == "${your_mac}" ]];
+        then
+	     aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
+	else
+	     aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
+	fi
 	prepare_session
     fi
 }
@@ -446,6 +464,11 @@ function validate_tcp_flags() {
     done
 }
 
+function reassembling_streams() {
+
+    continue
+}
+
 function tcp_extract_info() {
 
     path_log="./$logs_dir/${logs[0]}"
@@ -468,21 +491,29 @@ function tcp_extract_info() {
     if [ "$mechanism_one" -eq 1 ];
     then
 	for stream in $(cat $file | awk '{print $1}' | sort -n -u);
-	do
-	    extract_flags=$(cat $file | awk "\$1 == \"$stream\" {print \$NF}" | sort -u | awk '{print substr($0,length($0)-1)}')
-	    flags=($extract_flags)
-	    timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
-	    validate_tcp_flags
+	do  
+	    src_ip=$(awk -F'\t' -v stream=$stream '$1 == stream {print $4}' $file | head -n 1)
+	    src_mac=$(awk -F'\t' -v stream=$stream '$1 == stream {print $3}' $file | head -n 1)
+	    if [[ (("$src_ip" == "${your_ip}" ||
+		    "$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
+		  (("$src_ip" != "${your_ip}" ||
+		    "$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
+	    then
+	#	reassembling_streams
+		timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
+		extract_flags=$(cat $file | awk "\$1 == \"$stream\" {print \$NF}" | sort -u | awk '{print substr($0,length($0)-1)}')
+		flags=($extract_flags)
+		validate_tcp_flags
 	    
-	    awk -F'\t' \
-		-v your_ip="$your_ip" \
-		-v your_mac="$your_mac" \
-		-v stream="$stream" \
-		-v flags_h="$flags_history" \
-		-v ts="$timestamp" '$1 == stream && ($3 == your_mac || $4 == your_ip) \
-		{print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["flags_h"]"}' \
-		$file | sort -u >> $path_log
-	    flags_history=""
+		awk -F'\t' \
+		    -v src="$src_ip" \
+		    -v stream="$stream" \
+		    -v flags_h="$flags_history" \
+		    -v ts="$timestamp" '$1 == stream && $4 == src \
+		    {print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["flags_h"]"}' \
+		    $file | sort -u >> $path_log
+		flags_history=""
+	    fi
 	done
     else	
 	extract_flags=$(tshark -r "${general_capture}" -Y \
@@ -567,14 +598,21 @@ function udp_extract_info() {
     then
 	for stream in $(cat $file | awk '{print $1}' | sort -n -u);
 	do
-	    timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
-	    awk -F'\t' \
-		-v your_ip="$your_ip" \
-		-v your_mac="$your_mac" \
-		-v stream="$stream" \
-		-v ts="$timestamp" -v msg="$U1" '$1 == stream && ($3 == your_mac || $4 == your_ip) \
-		{print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["msg"]"}' \
-		$file | sort -u >> $path_log
+	    src_ip=$(awk -F'\t' -v stream=$stream '$1 == stream {print $4}' $file | head -n 1)
+	    src_mac=$(awk -F'\t' -v stream=$stream '$1 == stream {print $3}' $file | head -n 1)
+	    if [[ (("$src_ip" == "${your_ip}" ||
+		    "$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
+		  (("$src_ip" != "${your_ip}" ||
+		    "$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
+	    then
+		timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
+		awk -F'\t' \
+		    -v src="$src_ip" \
+		    -v stream="$stream" \
+		    -v ts="$timestamp" -v msg="$U1" '$1 == stream && $4 == src \
+		    {print "["$1"] " "["ts"] " "["$3"] " "["$4"] " "["$5"] " "["$6"] " "["$7"] " "["$8"] " "["msg"]"}' \
+		    $file | sort -u >> $path_log
+	    fi
 	done
     else	
 	udp "$stream" "$aux_filter" 
@@ -602,9 +640,9 @@ function udp_services_log() {
             data=(
 		"${query[$l]}"
 		"${r_a[$l]}"
-		 "${r_aaaa[$l]}"
-		 "${r_txt[$l]}"
-		 "${c_name[$l]}"
+		"${r_aaaa[$l]}"
+	        "${r_txt[$l]}"
+         	"${c_name[$l]}"
 	    )
             preparing_log "${data[@]}"
 	    print_log "$path_log"
@@ -721,7 +759,6 @@ then
 	       start_l7=$((start_l7+1))
 	       logs=("${in_logs[@]}")
 	       incoming=0
-	       aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
 	    
 	   elif [ "$arg4" == "--outgoing" ] ||
 		[ "$arg4" == "-out" ];
@@ -729,7 +766,14 @@ then
 	       start_l7=$((start_l7+1))
 	       logs=("${out_logs[@]}")
 	       outgoing=0
-	       aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
+
+	   elif [ "$arg4" == "--bidirectional" ] ||
+		[ "$arg4" == "-bid" ];
+	   then
+	       start_l7=$((start_l7+1))
+	       logs=("${out_logs[@]}")
+	       outgoing=0
+	       incoming=0
 	   fi
 
 	   if [ "$arg5" == "--only-hunt" ] ||
