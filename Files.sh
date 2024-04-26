@@ -52,10 +52,3 @@ subdirectories=(
     'DNS_Tunneling'
     'Layer_2_Attacks'
 )
-
-general_capture=".general.pcap"
-
-filter_files=(
-    './service_filter.txt'
-    './domain_filter.txt'
-)
