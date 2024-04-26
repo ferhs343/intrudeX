@@ -62,59 +62,42 @@ function killer() {
     exit
 }
 
-function builder_filters() {
+function builder_filter() {
     
     if [ "$layer7" -eq 0 ];
-    then	
-        parts=()
-	j=0
-        n_elements="$(cat ${filter_files[$i]} | wc -l)"
+    then
+	i=0
+	default_filter="ether host ${your_mac} or host ${your_ip}"
+	n_hosts="$(cat ${host_filter} | wc -l)"
 	
-	if [ "$n_elements" -gt 1 ];
+	#Variables needed to exclude host traffic in whitelist
+	init_keyword=""
+        final_keyword=""
+	wl_hosts=()
+	
+	if [ "${n_hosts}" -gt 0 ];
 	then
 	    init_keyword="and not("
-	    final_keyword=")"
-	    for element in $(cat "${filter_files[$i]}" | grep -v "#");
+            final_keyword=")"
+	
+	    for wl_host in $(cat $host_filter);
 	    do
-	        if [[ "${filter_files[$i]}" =~ "./host_filter" ]];
-	        then
-	            if [ "$j" -lt 1 ];
-		    then
-		        part="host ${element}"
-		    else
-		        part="or host ${element}"
-		    fi
-
-		elif [ "${filter_files[$i]}" == "./service_filter.txt" ];
-	        then
-	      	    if [ "$j" -lt 1 ];
-		    then
-		        part="${element}"
-		    else
-		        part="or ${element}"
-		    fi
-
-		elif [ "${filter_files[$i]}" == "./domain_filter.txt" ];
-	        then
-		    if [ "$j" -lt 1 ];
-		    then
-		        part="dns.qry.name == ${element}"
-		    else
-		        part="or dns.qry.name == ${element}"
-		    fi
+		if [ "$i" -lt 1 ];
+		then
+		    builder="host ${wl_host}"	    
+		else
+		    builder="or host ${wl_host}"
 		fi
-
-		parts+=($part)
-	        j=$((j+1))
+		
+		wl_hosts+=($builder)
+	        i=$((i+1))
 	    done
-	else
-	    init_keyword=""
-	    final_keyword=""
 	fi
+	new_filter="${default_filter} ${init_keyword} ${wl_hosts[*]} ${final_keyword}"
 	
     elif [ "$layer2" -eq 0 ];
     then
-	default_general_filter="not tcp and not udp"
+	new_filter="not tcp and not udp"
     fi
 }
 
@@ -123,7 +106,7 @@ function sniffer() {
     touch $general_capture
     gzip $general_capture
     general_capture="${general_capture}.gz"
-    tshark -w "${general_capture}" -i $net_interface -f "${default_general_filter}" > /dev/null 2>&1 &
+    tshark -w "${general_capture}" -i $net_interface -f "${new_filter}" > /dev/null 2>&1 &
     pid_sniffer=$!
     #principal sniffer process ID
 }
@@ -307,9 +290,13 @@ function mechanism_one() {
 
         split $procesing_logs -l 500 trim
         mv trim* $logs_dir/$logs_in_process
+        extract_trims="$(ls $logs_dir/$logs_in_process/trim*)"
+	trims=($extract_trims)
 	
-        for file in $(ls $logs_dir/$logs_in_process/trim*);
+        for (( i=0;i<="$(( ${#trims[@]} - 1 ))";i++ ));
         do
+	    file="${trims[$i]}"
+	    next_file="${trims[$i+1]}"
 	    if [ "$tcp" -eq 1 ];
 	    then
       		tcp_extract_info
@@ -332,12 +319,12 @@ function mechanism_two() {
 
     src_mac=$(tshark -r "${general_capture}" \
 		     -Y "${stream_filter} eq ${stream}" \
-		     -T fields -e "$eth.src" \
+		     -T fields -e "eth.src" \
 		     2> /dev/null | head -n 1)
     
     if [[ (("$src_ip" == "${your_ip}" ||
 	    "$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
-	   (("$src_ip" != "${your_ip}" ||
+	  (("$src_ip" != "${your_ip}" ||
 	    "$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
     then
 	if [[ "$src_ip" == "${your_ip}" ||
@@ -400,63 +387,63 @@ function print_log() {
 
 function validate_tcp_flags() {
 
-    for (( j=0;j<="$(( ${#flags[@]} - 1 ))";j++ ));
+    for (( k=0;k<="$(( ${#flags[@]} - 1 ))";k++ ));
     do
-        if [ "${flags[$j]}" == "02" ];
+        if [ "${flags[$k]}" == "02" ];
 	then
             Syn=1
 	    flags_history+="Syn "
 	fi
 
-	if [ "${flags[$j]}" == "12" ];
+	if [ "${flags[$k]}" == "12" ];
 	then
             Syn_ack=1
 	    flags_history+="Synack "
 	fi
 
-	if [ "${flags[$j]}" == "10" ];
+	if [ "${flags[$k]}" == "10" ];
 	then
             Ack=1
 	    flags_history+="Ack "
 	fi
 
-	if [ "${flags[$j]}" == "08" ];
+	if [ "${flags[$k]}" == "08" ];
 	then
             Push=1
 	    flags_history+="Psh "
 	fi
 
-        if [ "${flags[$j]}" == "18" ];
+        if [ "${flags[$k]}" == "18" ];
 	then
             Push_ack=1
 	    flags_history+="Pshack "
 	fi
 		
-	if [ "${flags[$j]}" == "01" ];
+	if [ "${flags[$k]}" == "01" ];
 	then
             Fin=1
             flags_history+="Fin "
 	fi
 
-	if [ "${flags[$j]}" == "11" ];
+	if [ "${flags[$k]}" == "11" ];
 	then
 	    Fin_ack=1
 	    flags_history+="Finack "
 	fi
 
-	if [ "${flags[$j]}" == "04" ];
+	if [ "${flags[$k]}" == "04" ];
 	then
             Reset=1
 	    flags_history+="Rst "
 	fi
 
-	if [ "${flags[$j]}" == "14" ];
+	if [ "${flags[$k]}" == "14" ];
 	then
             Reset_ack=1
             flags_history+="Rstack "
 	fi
 
-        if [ "${flags[$j]}" == "00" ];
+        if [ "${flags[$k]}" == "00" ];
 	then
             Null=1
 	    flags_history+="NULL "
@@ -488,10 +475,15 @@ function tcp_extract_info() {
     Reset_ack=0
         
     flags=()
+    streams=()
     if [ "$mechanism_one" -eq 1 ];
     then
-	for stream in $(cat $file | awk '{print $1}' | sort -n -u);
-	do  
+        extract_streams="$(cat $file | awk '{print $1}' | sort -n -u)"
+	streams=($extract_streams)
+	
+	for (( j=0;j<="$(( ${#streams[@]} - 1 ))";j++ ));
+	do
+	    stream="${streams[$j]}"
 	    src_ip=$(awk -F'\t' -v stream=$stream '$1 == stream {print $4}' $file | head -n 1)
 	    src_mac=$(awk -F'\t' -v stream=$stream '$1 == stream {print $3}' $file | head -n 1)
 	    if [[ (("$src_ip" == "${your_ip}" ||
@@ -596,8 +588,12 @@ function udp_extract_info() {
 
     if [ "$mechanism_one" -eq 1 ];
     then
-	for stream in $(cat $file | awk '{print $1}' | sort -n -u);
+	extract_streams="$(cat $file | awk '{print $1}' | sort -n -u)"
+	streams=($extract_streams)
+	
+	for (( j=0;j<="$(( ${#streams[@]} - 1 ))";j++ ));
 	do
+	    stream="${streams[$j]}"
 	    src_ip=$(awk -F'\t' -v stream=$stream '$1 == stream {print $4}' $file | head -n 1)
 	    src_mac=$(awk -F'\t' -v stream=$stream '$1 == stream {print $3}' $file | head -n 1)
 	    if [[ (("$src_ip" == "${your_ip}" ||
@@ -741,7 +737,7 @@ then
 	   then
 	       start_l7=$((start_l7+1))
 	       your_ip=$(ifconfig $net_interface | grep -w 'inet6' | awk '{print $2}')
-	       filter_files+=('./host_filter6.txt')
+	       host_filter=$host_filter_6
 	       ip_filter="ipv6"
 		
 	   elif [ "$arg3" == "-4" ] ||
@@ -749,7 +745,7 @@ then
 	   then
 	       start_l7=$((start_l7+1))
 	       your_ip=$(ifconfig $net_interface | grep -w 'inet' | awk '{print $2}')
-	       filter_files+=('./host_filter4.txt')
+	       host_filter=$host_filter_4
 	       ip_filter="ip"
 	   fi
 
@@ -817,24 +813,7 @@ then
 	    
 	       trap killer SIGINT
 	       clear
-
-	       for (( i=0;i<="$(( ${#filter_files[@]} - 1 ))";i++ ));
-	       do
-		   builder_filters "${filter_files[$i]}"
-		   if [[ "${filter_files[$i]}" =~ "./host_filter" ]];
-		   then
-		       default_general_filter="${default_general_filter} ${init_keyword} ${parts[*]} ${final_keyword}"
-		    
-                   elif [ "${filter_files[$i]}" == "./service_filter.txt" ];
-		   then
-		       default_service_filter="${default_service_filter} ${init_keyword} ${parts[*]} ${final_keyword}"
-		    
-		   elif [ "${filter_files[$i]}" == "./domain_filter.txt" ];
-		   then
-		       default_domain_filter="${default_domain_filter} ${init_keyword} ${parts[*]} ${final_keyword}"
-		   fi
-	       done
-
+	       builder_filter
 	       sniffer
 	       echo -e "${green}\n [+] I'm Hunting....${default}"
 	       sessions
@@ -852,7 +831,7 @@ then
 	    if [[ "$start_l2" -eq 2 &&
 		  "$arg3" == "" ]];
 	    then
-		builder_filters
+		builder_filter
 		sniffer
 		echo -e "${green}\n [+] I'm Hunting....${default}"
 	    else
