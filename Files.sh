@@ -16,9 +16,14 @@ pcaps_dir="PCAPS"
 logs_dir="LOGS"
 logs_in_process=".logs_in_process"
 procesing_logs="./$logs_dir/$logs_in_process/.logs_in_process.log"
+host_filter_4="host_filter4.txt"
+host_filter_6="host_filter6.txt"
+general_capture=".general.pcap"
+stream_capture=".stream.pcap"
 
 out_logs=(
-    'sessions.log'
+    'tcp.log'
+    'udp.log'
     'http.log'
     'ssl.log'
     'ssh.log'
@@ -36,7 +41,8 @@ out_logs=(
 )
 
 in_logs=(
-    'sessions.log'
+    'tcp.log'
+    'udp.log'
     'http.log'
     'ssl.log'
     'ftp.log'
