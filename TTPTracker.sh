@@ -15,6 +15,7 @@
 
 source Files.sh
 source Colors.sh
+source Errors.sh
 
 #global variables
 current=$PWD
@@ -80,24 +81,6 @@ function prompt_option() {
 
 function prompt_suboption() {
     echo -e "${green}┌─[${red}${HOSTNAME}${green}]──[${red}~${green}]─[${yellow}/MainMenu/${name_option}/${name_suboption}${green}]:"
-}
-
-#errors
-function error_option() {
-    echo -e "${red}\n ERROR, the specified option does not exist!!\n\n${default}"
-}
-
-function error_load_pcap() {
-    echo -e "${red}\n ERROR, the specified PCAP file does not exist in this directory!!\n\n${default}"
-}
-
-function error_instalation() {
-    echo -e "${red}\n [+] ERROR, an unexpected error occurred during installation!!${default}"
-}
-
-function error_distribution() {
-    echo -e "${red}\n [+] ERROR, your linux distribution is not compatible with intrudeX, this tool works on Debian-based distributions!${default}"
-    sleep 10
 }
 
 function create() {
@@ -435,6 +418,7 @@ function main() {
         main_menu
     else
         error_distribution
+        sleep 5
         main_menu_option_4
     fi
 }
