@@ -1,2 +1,0 @@
-#DNS Domains that TTP Tracker will exclude
-www.google.com
