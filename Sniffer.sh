@@ -198,7 +198,7 @@ function layer7() {
             stream_filter="tcp.stream"
             session=$(tshark -r "${general_capture}" \
                              -Y "${streams_filter_tcp}" \
-                             -T fields -e "${stream_filter}"  \
+                             -T fields -e "${stream_filter}" \
                              2> /dev/null | sort -n -u)
             tcp_streams=($session)
             streams=("${tcp_streams[@]}")
@@ -246,19 +246,12 @@ function layer7() {
               "$tcp" -eq 1 ]];
         then
             #Partial sessions
-            partial_session=1
-            if [ "${#partials[@]}" -gt 5 ];
-            then
-                mechanism_one=1
-                mechanism_one
-            else
-                mechanism_one=0
-                for (( i=0;i<=${#partials[@]} - 1;i++ ));
-                do
-                    export_stream_pcap
-                    prepare_session
-                done
-            fi
+	    partial_session=1
+            for (( i=0;i<=${#partials[@]} - 1;i++ ));
+            do
+                export_stream_pcap
+                mechanism_two
+            done
         fi
 
         sleep 3
@@ -286,7 +279,7 @@ function mechanism_one() {
     stream_init="${streams[0]}"
     stream_fin=$fin
     trims=()
-    export_stream_pcap
+    
     if [ "$tcp" -eq 1 ];
     then
         fast_tcp "$procesing_logs"
@@ -323,54 +316,66 @@ function mechanism_one() {
         done
 
         rm $logs_dir/$logs_in_process/trim*
+	mechanism_one=0
     fi
 }
 
 function mechanism_two() {
 
-    stream="${streams[$i]}"
-    check_src
-
-    if [[ (("$src_ip" == "${your_ip}" ||
-            "$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
-          (("$src_ip" != "${your_ip}" ||
-            "$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
-    then
-        prepare_session
-    fi
-}
-
-function check_src() {
-
-    src_ip=$(tshark -r "${stream_capture}" \
-                    -T fields -e "${ip_filter}.src" \
-                    2> /dev/null | head -n 1)
-
-    src_mac=$(tshark -r "${stream_capture}" \
-                     -T fields -e "eth.src" \
-                     2> /dev/null | head -n 1)
-
-    if [[ "$src_ip" == "${your_ip}" ||
-          "$src_mac" == "${your_mac}" ]];
-    then
-        aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
-    else
-        aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
-    fi
-}
-
-function prepare_session() {
-
+    continue=0
     if [ "$partial_session" -eq 1 ];
     then
         stream="${partials[$i]}"
+	continue=1
+    else
+	stream="${streams[$i]}"
+	src_ip=$(tshark -r "${stream_capture}" \
+                    -T fields -e "${ip_filter}.src" \
+                    2> /dev/null | head -n 1)
+
+	src_mac=$(tshark -r "${stream_capture}" \
+                     -T fields -e "eth.src" \
+                     2> /dev/null | head -n 1)
+
+	if [[ (("$src_ip" == "${your_ip}" ||
+		"$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
+	      (("$src_ip" != "${your_ip}" ||
+		"$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
+	then
+	    continue=1
+	fi
     fi
 
-    check_src
-    timestamp=$(tshark -r "${stream_capture}" \
-                       -T fields -e "frame.time" \
+    if [ "$continue" -eq 1 ];
+    then
+	if [[ "$outgoing" -eq 0 &&
+	      "$incoming" -eq 1 ]];
+	then
+            aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
+	    
+	elif [[ "$incoming" -eq 0 &&
+	        "$outgoing" -eq 1 ]];
+	then
+            aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
+
+	elif [[ "$incoming" -eq 0 &&
+	        "$outgoing" -eq 0 ]];
+	then
+	    aux_filter=""
+	   # aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip}) || \
+	    #		(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
+	fi
+	
+        timestamp=$(tshark -r "${stream_capture}" \
+		       -T fields -e "frame.time" \
                        2> /dev/null | head -n 1 | tr ' ' '-')
-    if [ "$tcp" -eq 1 ]; then tcp_extract_info; else udp_extract_info; fi
+	if [ "$tcp" -eq 1 ];
+	then
+	    tcp_extract_info
+	else
+	    udp_extract_info
+	fi
+    fi
 }
 
 function used_service() {
@@ -892,3 +897,4 @@ else
     error_distribution
     sleep 5
 fi
+
