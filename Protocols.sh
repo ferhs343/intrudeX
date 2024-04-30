@@ -16,12 +16,12 @@ source Files.sh
 
 function tcp() {
 
-    src_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.src" 2> /dev/null | sort -u)
-    src_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort -u)
-    src_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "tcp.srcport" 2> /dev/null | sort -u)
-    dst_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.dst" 2> /dev/null | sort -u)
-    dst_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort -u)
-    dst_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "tcp.dstport" 2> /dev/null | sort -u)
+    src_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.src" 2> /dev/null | head -n 1)
+    src_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.src" 2> /dev/null | head -n 1)
+    src_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "tcp.srcport" 2> /dev/null | head -n 1)
+    dst_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.dst" 2> /dev/null | head -n 1)
+    dst_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.dst" 2> /dev/null | head -n 1)
+    dst_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "tcp.dstport" 2> /dev/null | head -n 1)
 }
 
 function fast_tcp() {
@@ -41,12 +41,12 @@ function fast_tcp() {
 
 function udp() {
 
-    src_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.src" 2> /dev/null | sort -u)
-    src_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.src" 2> /dev/null | sort -u)
-    src_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "udp.srcport" 2> /dev/null | sort -u)
-    dst_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.dst" 2> /dev/null | sort -u)
-    dst_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.dst" 2> /dev/null | sort -u)
-    dst_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "udp.dstport" 2> /dev/null | sort -u)
+    src_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.src" 2> /dev/null | head -n 1)
+    src_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.src" 2> /dev/null | head -n 1)
+    src_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "udp.srcport" 2> /dev/null | head -n 1)
+    dst_mac=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "eth.dst" 2> /dev/null | head -n 1)
+    dst_ip=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "${ip_filter}.dst" 2> /dev/null | head -n 1)
+    dst_port=$(tshark -r "${stream_capture}" -Y "${1}" -T fields -e "udp.dstport" 2> /dev/null | head -n 1)
 }
 
 function fast_udp() {
