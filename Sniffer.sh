@@ -18,6 +18,8 @@ source Files.sh
 source Protocols.sh
 source Errors.sh
 
+ipv4=0
+ipv6=0
 layer2=1
 layer7=1
 incoming=1
@@ -123,6 +125,37 @@ function sniffer() {
     tshark -w "${general_capture}" -i $net_interface -f "${new_filter}" > /dev/null 2>&1 &
     pid_sniffer=$!
     #principal sniffer process ID
+}
+
+function port_scanner() {
+
+    tcp_ports=()
+    udp_ports=()
+
+    if [ "$ipv4" -eq 1 ];
+    then
+        loopback="127.0.0.1"
+    else
+        loopback="::1"
+    fi
+
+    for (( i=0;i<=65535;i++ ));
+    do
+        nc -zv $loopback $i 2> /dev/null
+        if [ "$?" -eq 0 ];
+        then
+            tcp_ports+=($i)
+        fi
+    done
+
+    for (( i=0;i<=65535;i++ ));
+    do
+        nc -zvu $loopback $i 2> /dev/null
+        if [ "$?" -eq 0 ];
+        then
+            udp_ports+=($i)
+        fi
+    done
 }
 
 function export_stream_pcap() {
@@ -246,7 +279,7 @@ function layer7() {
               "$tcp" -eq 1 ]];
         then
             #Partial sessions
-	    partial_session=1
+            partial_session=1
             for (( i=0;i<=${#partials[@]} - 1;i++ ));
             do
                 export_stream_pcap
@@ -279,7 +312,7 @@ function mechanism_one() {
     stream_init="${streams[0]}"
     stream_fin=$fin
     trims=()
-    
+
     if [ "$tcp" -eq 1 ];
     then
         fast_tcp "$procesing_logs"
@@ -316,7 +349,7 @@ function mechanism_one() {
         done
 
         rm $logs_dir/$logs_in_process/trim*
-	mechanism_one=0
+        mechanism_one=0
     fi
 }
 
@@ -326,55 +359,37 @@ function mechanism_two() {
     if [ "$partial_session" -eq 1 ];
     then
         stream="${partials[$i]}"
-	continue=1
+        continue=1
     else
-	stream="${streams[$i]}"
-	src_ip=$(tshark -r "${stream_capture}" \
+        stream="${streams[$i]}"
+        src_ip=$(tshark -r "${stream_capture}" \
                     -T fields -e "${ip_filter}.src" \
                     2> /dev/null | head -n 1)
 
-	src_mac=$(tshark -r "${stream_capture}" \
+        src_mac=$(tshark -r "${stream_capture}" \
                      -T fields -e "eth.src" \
                      2> /dev/null | head -n 1)
 
-	if [[ (("$src_ip" == "${your_ip}" ||
-		"$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
-	      (("$src_ip" != "${your_ip}" ||
-		"$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
-	then
-	    continue=1
-	fi
+        if [[ (("$src_ip" == "${your_ip}" ||
+                "$src_mac" == "${your_mac}") && "$outgoing" -eq 0) ||
+              (("$src_ip" != "${your_ip}" ||
+                "$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
+        then
+            continue=1
+        fi
     fi
 
     if [ "$continue" -eq 1 ];
     then
-	if [[ "$outgoing" -eq 0 &&
-	      "$incoming" -eq 1 ]];
-	then
-            aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip})"
-	    
-	elif [[ "$incoming" -eq 0 &&
-	        "$outgoing" -eq 1 ]];
-	then
-            aux_filter="(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
-
-	elif [[ "$incoming" -eq 0 &&
-	        "$outgoing" -eq 0 ]];
-	then
-	    aux_filter=""
-	   # aux_filter="(eth.src == ${your_mac} || ${ip_filter}.src == ${your_ip}) || \
-	    #		(eth.src != ${your_mac} || ${ip_filter}.src != ${your_ip})"
-	fi
-	
         timestamp=$(tshark -r "${stream_capture}" \
-		       -T fields -e "frame.time" \
+                       -T fields -e "frame.time" \
                        2> /dev/null | head -n 1 | tr ' ' '-')
-	if [ "$tcp" -eq 1 ];
-	then
-	    tcp_extract_info
-	else
-	    udp_extract_info
-	fi
+        if [ "$tcp" -eq 1 ];
+        then
+            tcp_extract_info
+        else
+            udp_extract_info
+        fi
     fi
 }
 
@@ -416,6 +431,20 @@ function print_log() {
 }
 
 function validate_tcp_flags() {
+
+    flags_history=""
+    #TCP Flags
+    Syn=0
+    Ack=0
+    Push=0
+    Fin=0
+    Reset=0
+    Urg=0
+    Null=0
+    Syn_ack=0
+    Push_ack=0
+    Fin_ack=0
+    Reset_ack=0
 
     for (( k=0;k<=${#flags[@]} - 1;k++ ));
     do
@@ -490,21 +519,6 @@ function tcp_extract_info() {
 
     path_log="./$logs_dir/${logs[0]}"
 
-    flags_history=""
-    #TCP Flags
-    Syn=0
-    Ack=0
-    Push=0
-    Fin=0
-    Reset=0
-    Urg=0
-    Null=0
-    Syn_ack=0
-    Push_ack=0
-    Fin_ack=0
-    Reset_ack=0
-
-    flags=()
     if [ "$mechanism_one" -eq 1 ];
     then
         streams_trim=()
@@ -521,6 +535,7 @@ function tcp_extract_info() {
                   (("$src_ip" != "${your_ip}" ||
                     "$src_mac" != "${your_mac}") && "$incoming" -eq 0) ]];
             then
+                flags=()
         #       reassembling_streams
                 timestamp=$(awk -F'\t' -v stream=$stream '$1 == stream {print $2}' $file | head -n 1 | tr ' ' '-')
                 extract_flags=$(cat $file | awk "\$1 == \"$stream\" {print \$NF}" | sort -u | awk '{print substr($0,length($0)-1)}')
@@ -545,7 +560,7 @@ function tcp_extract_info() {
                                2> /dev/null | sort -u | awk '{print substr($0,length($0)-1)}')
         flags=($extract_flags)
         validate_tcp_flags
-        tcp "$aux_filter"
+        tcp
 
         if [ "$partial_session" -eq 0 ];
         then
@@ -564,23 +579,26 @@ function tcp_extract_info() {
 
         tcp_conn_status
 
-        if [[ "$finished" -eq 1 &&
-              "$partial_session" -eq 1 ]];
+        if [ "$finished" -eq 1 ];
         then
-            timestamp=$(tshark -r "${stream_capture}" \
-                           -T fields -e "frame.time" \
-                           2> /dev/null | tail -n 1 | tr ' ' '-');
-            data=(
-                "$src_mac"
-                "$src_ip"
-                "$src_port"
-                "$dst_mac"
-                "$dst_ip"
-                "$dst_port"
-                "$flags_history"
-            )
-            preparing_log "${data[@]}"
-            print_log "$path_log"
+            if [ "$partial_session" -eq 1 ];
+            then
+                timestamp=$(tshark -r "${stream_capture}" \
+                                   -T fields -e "frame.time" \
+                                   2> /dev/null | tail -n 1 | tr ' ' '-');
+                data=(
+                    "$src_mac"
+                    "$src_ip"
+                    "$src_port"
+                    "$dst_mac"
+                    "$dst_ip"
+                    "$dst_port"
+                    "$flags_history"
+                )
+                preparing_log "${data[@]}"
+                print_log "$path_log"
+            fi
+
             used_service "${tcp_list[@]}"
         fi
     fi
@@ -594,7 +612,6 @@ function tcp_conn_status() {
     then
         if [ "$partial_session" -eq 0 ];
         then
-            echo "agreagdno ${stream}"
             partials+=($stream)
         fi
     fi
@@ -648,7 +665,7 @@ function udp_extract_info() {
             fi
         done
     else
-        udp "$aux_filter"
+        udp
         data=(
             "$src_mac"
             "$src_ip"
@@ -784,6 +801,7 @@ then
                    [ "$arg3" == "--ipv6" ]
                 then
                     start_l7=$((start_l7+1))
+                    ipv6=1
                     your_ip=$(ifconfig $net_interface | grep -w 'inet6' | awk '{print $2}')
                     host_filter=$host_filter_6
                     ip_filter="ipv6"
@@ -792,6 +810,7 @@ then
                      [ "$arg3" == "--ipv4" ]
                 then
                     start_l7=$((start_l7+1))
+                    ipv4=1
                     your_ip=$(ifconfig $net_interface | grep -w 'inet' | awk '{print $2}')
                     host_filter=$host_filter_4
                     ip_filter="ip"
@@ -844,7 +863,12 @@ then
                       "$arg6" == "" ]];
                 then
                     echo -e "${green}\n [+] Loading, wait a moment....${default}"
-                    sleep 5
+
+                    if [ "$incoming" -eq 0 ];
+                    then
+                        sleep 1
+                #       port_scanner
+                    fi
 
                     for (( i=0;i<="$(( ${#logs[@]} - 1 ))";i++ ));
                     do
@@ -897,4 +921,3 @@ else
     error_distribution
     sleep 5
 fi
-
